@@ -86,6 +86,18 @@ function App() {
     const [aiVoice, setAiVoice] = useState('Puck'); // Default for live, speakText often uses Charon
     const [aiLanguage, setAiLanguage] = useState('Português (Brasil)');
     const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
+    const [apiDiagnostics, setApiDiagnostics] = useState<{
+        sources: Array<{ label: string; status: 'idle' | 'working' | 'failed' }>;
+        activeLabel: string | null;
+    }>({
+        sources: [
+            { label: 'Chave do Usuário', status: 'idle' },
+            { label: 'Fallback 1 (Env)', status: 'idle' },
+            { label: 'Fallback 2 (Backup)', status: 'idle' },
+            { label: 'Fallback 3 (Secondary)', status: 'idle' },
+        ],
+        activeLabel: null
+    });
 
     // Wrapper for speakText to always use the user-selected voice
     const speakText = useCallback((text: string) => {
@@ -172,6 +184,25 @@ function App() {
         if (!key?.trim()) return false;
         setAiStatus('idle');
 
+        // Reset diagnostics
+        setApiDiagnostics({
+            sources: [
+                { label: 'Chave do Usuário', status: 'idle' },
+                { label: 'Fallback 1 (Env)', status: 'idle' },
+                { label: 'Fallback 2 (Backup)', status: 'idle' },
+                { label: 'Fallback 3 (Secondary)', status: 'idle' },
+            ],
+            activeLabel: null
+        });
+
+        const updateDiagnostic = (label: string, status: 'working' | 'failed') => {
+            setApiDiagnostics(prev => ({
+                ...prev,
+                sources: prev.sources.map(s => s.label === label ? { ...s, status } : s),
+                activeLabel: status === 'working' ? label : prev.activeLabel
+            }));
+        };
+
         // Helper to test a key and set it active if valid
         const tryKey = async (k: string): Promise<boolean> => {
             setGeminiApiKey(k);
@@ -186,10 +217,12 @@ function App() {
 
         // 1. Try user's key first
         if (await tryKey(key)) {
+            updateDiagnostic('Chave do Usuário', 'working');
             setAiStatus('connected');
             setApiKey(key);
             return true;
         }
+        updateDiagnostic('Chave do Usuário', 'failed');
 
         console.warn('[AI] User key failed. Falling back to default env key...');
 
@@ -197,35 +230,39 @@ function App() {
         const envKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
         if (envKey && envKey !== key) {
             if (await tryKey(envKey)) {
+                updateDiagnostic('Fallback 1 (Env)', 'working');
                 setAiStatus('connected');
-                // Keep the user's original key saved so they can re-try later,
-                // but run AI on the env key transparently
                 setApiKey(key);
                 return true;
             }
         }
+        updateDiagnostic('Fallback 1 (Env)', 'failed');
 
         // 3. Fallback: backup env key (VITE_BACKUP_GEMINI_API_KEY)
         const backupKey = (import.meta as any).env.VITE_BACKUP_GEMINI_API_KEY;
         if (backupKey && backupKey !== key && backupKey !== envKey) {
             console.warn('[AI] Default key failed. Trying backup key...');
             if (await tryKey(backupKey)) {
+                updateDiagnostic('Fallback 2 (Backup)', 'working');
                 setAiStatus('connected');
                 setApiKey(key);
                 return true;
             }
         }
+        updateDiagnostic('Fallback 2 (Backup)', 'failed');
 
         // 4. Fallback: secondary env key or hardcoded final key
         const secondaryKey = (import.meta as any).env.VITE_GEMINI_API_KEY_SECONDARY || 'AIzaSyDlbQg25TuIfYk5-YGA9DowvtiL8XHyihs';
         if (secondaryKey !== key && secondaryKey !== envKey && secondaryKey !== backupKey) {
             console.warn('[AI] Backup key failed. Trying secondary fallback key...');
             if (await tryKey(secondaryKey)) {
+                updateDiagnostic('Fallback 3 (Secondary)', 'working');
                 setAiStatus('connected');
                 setApiKey(key);
                 return true;
             }
         }
+        updateDiagnostic('Fallback 3 (Secondary)', 'failed');
 
         // All keys exhausted
         setAiStatus('error');
@@ -4150,6 +4187,7 @@ function App() {
                 onClose={() => setIsApiKeyModalOpen(false)}
                 currentKey={apiKey}
                 onSave={handleSaveApiKey}
+                diagnostics={apiDiagnostics}
             />
             <AiCallOverlay
                 callState={aiCallState}
