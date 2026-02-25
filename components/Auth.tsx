@@ -43,8 +43,8 @@ export const AuthUI: React.FC<AuthUIProps> = ({ onClose }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-xl">
-            <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-zinc-900/50 p-8 shadow-2xl backdrop-blur-2xl">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-xl md:p-4 p-0">
+            <div className="relative w-full max-w-md h-full md:h-auto overflow-hidden rounded-none md:rounded-3xl border border-white/10 bg-zinc-900/50 p-8 shadow-2xl backdrop-blur-2xl">
                 <button
                     onClick={onClose}
                     className="absolute right-6 top-6 p-2 rounded-full hover:bg-white/10 text-zinc-500 hover:text-white transition-all z-10"

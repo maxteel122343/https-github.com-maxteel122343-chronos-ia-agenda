@@ -54,8 +54,8 @@ const CanvasControlModal: React.FC<CanvasControlModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[101] flex items-center justify-center p-4">
-            <div className="bg-[#0f1115] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-300 overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[4000] flex items-center justify-center md:p-4 p-0" onClick={onClose}>
+            <div className="bg-[#0f1115] border border-white/10 rounded-none md:rounded-2xl w-full max-w-md h-full md:h-auto shadow-2xl animate-in fade-in md:zoom-in-95 duration-300 overflow-hidden" onClick={e => e.stopPropagation()}>
 
                 {/* Header */}
                 <div className="p-6 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-blue-900/20 to-indigo-900/20">

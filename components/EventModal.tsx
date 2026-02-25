@@ -41,8 +41,8 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, cards, events,
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-dark-800 border border-white/10 rounded-xl w-full max-w-md h-[600px] flex flex-col shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[4000] flex items-center justify-center md:p-4 p-0" onClick={onClose}>
+      <div className="bg-dark-800 border border-white/10 rounded-none md:rounded-xl w-full max-w-md h-full md:h-[600px] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b border-white/10 flex justify-between items-center bg-dark-900 rounded-t-xl">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Folder className="text-blue-500" /> Event Manager
@@ -51,13 +51,13 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, cards, events,
         </div>
 
         <div className="flex border-b border-white/10">
-          <button 
+          <button
             onClick={() => setActiveTab('list')}
             className={`flex-1 p-3 text-sm font-medium transition ${activeTab === 'list' ? 'bg-white/5 text-white border-b-2 border-blue-500' : 'text-gray-400 hover:bg-white/5'}`}
           >
             My Events
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('create')}
             className={`flex-1 p-3 text-sm font-medium transition ${activeTab === 'create' ? 'bg-white/5 text-white border-b-2 border-blue-500' : 'text-gray-400 hover:bg-white/5'}`}
           >
@@ -79,8 +79,8 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, cards, events,
                   </div>
                   <div className="text-xs text-gray-400 flex flex-wrap gap-1">
                     {evt.cardIds.slice(0, 3).map(cid => {
-                        const c = cards.find(x => x.id === cid);
-                        return c ? <span key={cid} className="bg-black/30 px-1 rounded">{c.title}</span> : null;
+                      const c = cards.find(x => x.id === cid);
+                      return c ? <span key={cid} className="bg-black/30 px-1 rounded">{c.title}</span> : null;
                     })}
                     {evt.cardIds.length > 3 && <span>+{evt.cardIds.length - 3} more</span>}
                   </div>
@@ -91,20 +91,20 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, cards, events,
             <div className="space-y-4 h-full flex flex-col">
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Event Name</label>
-                <input 
+                <input
                   className="w-full bg-dark-900 border border-gray-600 rounded p-2 text-white focus:outline-none focus:border-blue-500"
                   placeholder="e.g., Morning Routine"
                   value={newEventTitle}
                   onChange={e => setNewEventTitle(e.target.value)}
                 />
               </div>
-              
+
               <div className="flex-1 overflow-hidden flex flex-col">
                 <label className="text-xs text-gray-400 block mb-1">Select Cards to Include</label>
                 <div className="flex-1 overflow-y-auto space-y-2 bg-dark-900 p-2 rounded border border-gray-700">
                   {cards.map(card => (
-                    <div 
-                      key={card.id} 
+                    <div
+                      key={card.id}
                       onClick={() => toggleCardSelection(card.id)}
                       className={`flex items-center gap-2 p-2 rounded cursor-pointer transition ${selectedCardIds.has(card.id) ? 'bg-blue-600/20 border border-blue-500' : 'hover:bg-white/5 border border-transparent'}`}
                     >
@@ -117,7 +117,7 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, cards, events,
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={handleCreate}
                 disabled={!newEventTitle || selectedCardIds.size === 0}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 rounded flex items-center justify-center gap-2"

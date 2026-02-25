@@ -85,25 +85,25 @@ const TaskOrderModal: React.FC<TaskOrderModalProps> = ({
     const completedCount = localTasks.filter(t => t.status === 'completed').length;
 
     return (
-        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center md:p-4 p-0">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/40 backdrop-blur-xl animate-in fade-in duration-500" onClick={onClose} />
 
             {/* Modal Content */}
-            <div className="relative bg-white/95 backdrop-blur-2xl border border-white/60 w-full max-w-3xl max-h-[85vh] rounded-[48px] shadow-[0_40px_100px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden animate-in scale-95 opacity-0 duration-500 cubic-bezier(0.19, 1, 0.22, 1) [animation-fill-mode:forwards] animate-reveal">
+            <div className="relative bg-white/95 backdrop-blur-2xl border border-white/60 w-full max-w-3xl h-full md:max-h-[85vh] rounded-none md:rounded-[48px] shadow-[0_40px_100px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden animate-in scale-95 opacity-0 duration-500 cubic-bezier(0.19, 1, 0.22, 1) [animation-fill-mode:forwards] animate-reveal">
 
                 {/* Header Section */}
-                <div className="px-12 py-10 border-b border-gray-100 flex justify-between items-center relative overflow-hidden">
+                <div className="px-6 md:px-12 py-6 md:py-10 border-b border-gray-100 flex justify-between items-center relative overflow-hidden bg-white/50">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50/50 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none" />
 
-                    <div className="relative flex items-center gap-6">
-                        <div className="w-16 h-16 bg-blue-600 rounded-[28px] flex items-center justify-center text-white shadow-xl shadow-blue-500/20 rotate-6">
-                            <ListOrdered size={32} />
+                    <div className="relative flex items-center gap-4 md:gap-6">
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-600 rounded-2xl md:rounded-[28px] flex items-center justify-center text-white shadow-xl shadow-blue-500/20 rotate-6 shrink-0">
+                            <ListOrdered size={24} md:size={32} />
                         </div>
                         <div>
-                            <h2 className="text-4xl font-black text-gray-900 tracking-tighter leading-none">Task Order</h2>
-                            <p className="text-[11px] text-gray-400 font-black uppercase tracking-[0.2em] mt-3 ml-1 flex items-center gap-2">
-                                <Sparkles size={12} className="text-blue-500" /> Fluxo de Prioridade Inteligente
+                            <h2 className="text-xl md:text-4xl font-black text-gray-900 tracking-tighter leading-none">Task Order</h2>
+                            <p className="text-[9px] md:text-[11px] text-gray-400 font-black uppercase tracking-[0.2em] mt-2 ml-1 flex items-center gap-2">
+                                <Sparkles size={10} className="text-blue-500" /> Fluxo Prioritário
                             </p>
                         </div>
                     </div>
@@ -126,31 +126,31 @@ const TaskOrderModal: React.FC<TaskOrderModalProps> = ({
                 </div>
 
                 {/* Stats Bar */}
-                <div className="bg-gray-50/50 px-12 py-6 border-b border-gray-100 flex items-center gap-10">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-blue-600">
-                            <Clock size={18} />
+                <div className="bg-gray-50/50 px-6 md:px-12 py-4 md:py-6 border-b border-gray-100 flex items-center gap-6 md:gap-10">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-blue-600 shrink-0">
+                            <Clock size={16} />
                         </div>
                         <div>
-                            <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Pendentes</div>
-                            <div className="text-lg font-black text-gray-900">{pendingCount}</div>
+                            <div className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest">Pendentes</div>
+                            <div className="text-sm md:text-lg font-black text-gray-900">{pendingCount}</div>
                         </div>
                     </div>
-                    <div className="w-px h-8 bg-gray-200" />
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-emerald-500">
-                            <CheckCircle2 size={18} />
+                    <div className="w-px h-6 md:h-8 bg-gray-200" />
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-emerald-500 shrink-0">
+                            <CheckCircle2 size={16} />
                         </div>
                         <div>
-                            <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Concluídos</div>
-                            <div className="text-lg font-black text-gray-900">{completedCount}</div>
+                            <div className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest">Concluídos</div>
+                            <div className="text-sm md:text-lg font-black text-gray-900">{completedCount}</div>
                         </div>
                     </div>
 
                     {isRoutineActive && (
                         <button
                             onClick={onStop}
-                            className="ml-auto flex items-center gap-2 px-6 py-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all shadow-sm shadow-rose-500/5 group"
+                            className="ml-auto hidden md:flex items-center gap-2 px-6 py-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100 text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all shadow-sm shadow-rose-500/5 group"
                         >
                             <Square size={12} fill="currentColor" className="group-hover:scale-110 transition-transform" /> Parar Rotina
                         </button>
@@ -158,7 +158,7 @@ const TaskOrderModal: React.FC<TaskOrderModalProps> = ({
                 </div>
 
                 {/* Task List */}
-                <div className="flex-1 overflow-y-auto px-8 py-10 space-y-2 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto md:px-8 md:py-10 p-4 space-y-2 custom-scrollbar">
                     {localTasks.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-gray-300 py-20">
                             <div className="w-20 h-20 bg-gray-50 rounded-[32px] flex items-center justify-center mb-6 border border-gray-100 shadow-inner">
@@ -236,21 +236,21 @@ const TaskOrderModal: React.FC<TaskOrderModalProps> = ({
                 </div>
 
                 {/* Footer Controls */}
-                <div className="p-10 bg-white border-t border-gray-100 flex justify-between items-center px-12">
-                    <div className="flex items-center gap-3 text-sm font-bold text-gray-400">
+                <div className="p-6 md:p-10 bg-white border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 px-6 md:px-12">
+                    <div className="flex items-center gap-3 text-xs md:text-sm font-bold text-gray-400">
                         <Trophy size={18} className="text-amber-500" />
                         <span className="text-gray-900">{completedCount} finalizados</span> hoje
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex w-full md:w-auto gap-3 md:gap-4">
                         <button
                             onClick={() => onStart(localTasks)}
-                            className="bg-blue-600 text-white px-10 py-5 rounded-[24px] font-black text-sm uppercase tracking-widest shadow-2xl shadow-blue-600/30 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                            className="flex-1 md:flex-none bg-blue-600 text-white px-6 md:px-10 py-4 md:py-5 rounded-2xl md:rounded-[24px] font-black text-xs md:text-sm uppercase tracking-widest shadow-2xl shadow-blue-600/30 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
                         >
-                            <Play size={18} fill="white" /> Iniciar Sequência
+                            <Play size={16} md:size={18} fill="white" /> Iniciar Sequência
                         </button>
                         <button
                             onClick={onClose}
-                            className="bg-gray-900 text-white px-10 py-5 rounded-[24px] font-black text-sm uppercase tracking-widest shadow-2xl shadow-black/20 hover:scale-105 active:scale-95 transition-all"
+                            className="flex-1 md:flex-none bg-gray-900 text-white px-6 md:px-10 py-4 md:py-5 rounded-2xl md:rounded-[24px] font-black text-xs md:text-sm uppercase tracking-widest shadow-2xl shadow-black/20 hover:scale-[1.02] active:scale-95 transition-all"
                         >
                             Fechar
                         </button>

@@ -53,8 +53,8 @@ const DreamInteractionModal: React.FC<DreamInteractionModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="relative w-full max-w-5xl h-[85vh] bg-[#0c0e12] border border-white/10 rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center md:p-4 p-0 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="relative w-full max-w-5xl h-full md:h-[85vh] bg-[#0c0e12] border border-white/10 rounded-none md:rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
 
                 {/* Header */}
                 <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-blue-900/10 to-transparent">

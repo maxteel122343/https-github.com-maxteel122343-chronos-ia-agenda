@@ -119,8 +119,8 @@ const MediaGalleryModal: React.FC<MediaGalleryModalProps> = ({
     const allTags = Array.from(new Set(cards.flatMap(c => c.tags || []))).sort();
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden border border-gray-200">
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center md:p-4 p-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose}>
+            <div className="bg-white rounded-none md:rounded-2xl shadow-2xl w-full max-w-4xl h-full md:max-h-[80vh] flex flex-col overflow-hidden border border-gray-200" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <div className="flex items-center gap-3">

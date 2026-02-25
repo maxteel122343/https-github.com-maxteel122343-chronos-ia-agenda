@@ -1,17 +1,41 @@
 import { GoogleGenAI, Type, Modality, LiveServerMessage, FunctionDeclaration } from "@google/genai";
 import { CardData, CardColor, UserAiProfile } from "../types";
 
-export let ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_GEMINI_API_KEY || '' });
+const getApiKey = () => {
+    return (import.meta as any).env.VITE_GEMINI_API_KEY ||
+        (import.meta as any).env.GEMINI_API_KEY ||
+        (import.meta as any).env.VITE_BACKUP_GEMINI_API_KEY ||
+        (import.meta as any).env.VITE_GEMINI_API_KEY_SECONDARY ||
+        'AIzaSyDlbQg25TuIfYk5-YGA9DowvtiL8XHyihs';
+};
+
+// Use lazy initialization to avoid crash if API key is not ready during module load
+let _ai: GoogleGenAI | null = null;
+
+export const getAi = () => {
+    if (!_ai) {
+        const key = getApiKey() || 'placeholder-key';
+        _ai = new GoogleGenAI({ apiKey: key });
+    }
+    return _ai;
+};
 
 export const setGeminiApiKey = (key: string) => {
-    ai = new GoogleGenAI({ apiKey: key });
+    _ai = new GoogleGenAI({ apiKey: key });
+    console.log('[Gemini] API key updated, new instance created.');
 };
+
+// Always use current instance to avoid stale closures
+export const getCurrentAi = () => _ai || getAi();
+
+
+
 
 export const validateApiKey = async (): Promise<boolean> => {
     try {
         // Simple call to check if key is valid using the environment's model
-        await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+        await getCurrentAi().models.generateContent({
+            model: "gemini-2.0-flash",
             contents: [{ parts: [{ text: "ping" }] }]
         });
         return true;
@@ -63,7 +87,9 @@ export const connectLiveSession = async (
     onTranscript?: (text: string, isUser: boolean) => void,
     facingMode: 'user' | 'environment' = 'user',
     onRescheduleCard?: (cardId: string, newStartTime: string) => void,
-    currentCards: CardData[] = []
+    currentCards: CardData[] = [],
+    voice: string = 'Puck',
+    language: string = 'Português (Brasil)'
 ) => {
     let audioContext: AudioContext | null = null;
     let mediaStream: MediaStream | null = null;
@@ -126,35 +152,35 @@ export const connectLiveSession = async (
             onStreamReady(mediaStream);
         }
 
-        const cardContext = currentCards.map(c => `ID: ${c.id}, Título: ${c.title}, Status: ${c.status}`).join('\n');
+        const cardContext = currentCards.map(c => `ID: ${c.id}, Título: ${c.title}, Status: ${c.status} `).join('\n');
 
         // 2. Connect to Gemini Live
-        const sessionPromise = ai.live.connect({
+        const sessionPromise = getCurrentAi().live.connect({
             model: 'gemini-2.5-flash-native-audio-preview-09-2025',
             config: {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
+                    voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } }
                 },
                 inputAudioTranscription: {},
                 outputAudioTranscription: {},
                 systemInstruction: `Você é a Chronos, uma assistente de produtividade IA motivadora e empática. 
-                Fale em Português do Brasil com um tom casual, enérgico e amigável. 
-                Você pode ver o usuário pela câmera. Comece a conversa cumprimentando o usuário e comentando algo positivo que você vê. 
-                Seu objetivo é ajudar o usuário a se manter motivado e produtivo.
+                Fale em ${language} com um tom casual, enérgico e amigável.
+    ${language === 'Português (Brasil)' ? 'Comece a conversa cumprimentando o usuário e comentando algo positivo que você vê.' : 'Start the conversation by greeting the user and commenting on something positive you see.'} 
+                Your goal is to help the user stay motivated and productive.
                 
-                DURANTE A CONVERSA:
-                1. Dê DICAS práticas de produtividade baseadas no que você vê ou ouve.
-                2. Faça PERGUNTAS reflexivas para ajudar o usuário a pensar com clareza (ex: "O que está impedindo você de terminar isso agora?").
-                3. MOTIVAÇÃO: Use frases encorajadoras.
+                DURING THE CONVERSATION:
+1. Give practical productivity TIPS based on what you see or hear.
+                2. Ask reflective QUESTIONS to help the user think clearly.
+                3. MOTIVATION: Use encouraging phrases.
+
+    RESCHEDULING:
+                If the user mentions they couldn't finish something or if you notice incomplete cards, use the 'rescheduleCard' tool to ask and set a new time.
                 
-                REAGENDAMENTO:
-                Se o usuário mencionar que não conseguiu terminar algo ou se você notar cards incompletos, use a ferramenta 'rescheduleCard' para perguntar e definir um novo horário.
-                
-                CARDS ATUAIS NO CANVAS:
+                CURRENT CARDS ON CANVAS:
                 ${cardContext}
                 
-                Use a ferramenta 'registerUserHabit' para anotar comportamentos importantes discretamente.`,
+                Use 'registerUserHabit' to note important behaviors discreetly.`,
                 tools: [{ functionDeclarations: [habitTool, rescheduleTool] }]
             },
             callbacks: {
@@ -174,7 +200,7 @@ export const connectLiveSession = async (
                         sessionPromise.then(session => {
                             session.sendRealtimeInput({
                                 media: {
-                                    mimeType: `audio/pcm;rate=${audioContext?.sampleRate || 16000}`,
+                                    mimeType: `audio / pcm; rate = ${audioContext?.sampleRate || 16000} `,
                                     data: base64Data
                                 }
                             });
@@ -341,7 +367,7 @@ export const connectLiveSession = async (
     } catch (e) {
         console.error("Failed to connect live session", e);
         onStatusChange(false);
-        speakText("Não foi possível conectar a sessão ao vivo. Verifique o microfone.");
+        speakText("Não foi possível conectar a sessão ao vivo. Verifique o microfone.", voice);
         return () => { };
     }
 };
@@ -382,16 +408,16 @@ async function decodeAudioData(
     return buffer;
 }
 
-export const speakText = async (text: string) => {
+export const speakText = async (text: string, voice: string = 'Charon') => {
     try {
-        const response = await ai.models.generateContent({
+        const response = await getCurrentAi().models.generateContent({
             model: "gemini-1.5-flash",
             contents: { parts: [{ text: text }] },
             config: {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: {
                     voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName: 'Charon' },
+                        prebuiltVoiceConfig: { voiceName: voice },
                     },
                 },
             },
@@ -419,14 +445,14 @@ export const speakText = async (text: string) => {
 
 export const generateCardImage = async (title: string, description: string): Promise<string | null> => {
     try {
-        const response = await ai.models.generateContent({
+        const response = await getCurrentAi().models.generateContent({
             model: 'gemini-2.5-flash-image',
-            contents: `Create a futuristic, minimalist, cyberpunk style square icon/image representing the task: "${title}". Description: ${description}. High contrast, dark background.`,
+            contents: `Create a futuristic, minimalist, cyberpunk style square icon / image representing the task: "${title}".Description: ${description}. High contrast, dark background.`,
         });
 
         for (const part of response.candidates?.[0]?.content?.parts || []) {
             if (part.inlineData) {
-                return `data:image/png;base64,${part.inlineData.data}`;
+                return `data: image / png; base64, ${part.inlineData.data} `;
             }
         }
         return null;
@@ -438,9 +464,9 @@ export const generateCardImage = async (title: string, description: string): Pro
 
 export const breakDownTask = async (taskTitle: string): Promise<Array<{ title: string; description: string; duration: number }>> => {
     try {
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: `Break down the task "${taskTitle}" into exactly 5 sequential sub-steps to help a user organize their routine. Return JSON.`,
+        const response = await getCurrentAi().models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: `Break down the task "${taskTitle}" into exactly 5 sequential sub - steps to help a user organize their routine.Return JSON.`,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -521,34 +547,34 @@ export const getTaskSuggestions = async (currentCards: CardData[], query: string
             `ID: "${c.id}" | Title: "${c.title}" | Status: ${c.status} | Pos: (${Math.round(c.x)}, ${Math.round(c.y)})`
         ).join('\n');
 
-        const systemPrompt = `You are Chronos, a relaxed, fun, and energetic productivity assistant. You speak Portuguese (Brazil).
+        const systemPrompt = `You are Chronos, a relaxed, fun, and energetic productivity assistant.You speak Portuguese(Brazil).
         
         Current Cards on Canvas:
         ${cardContext}
         
-        Definitions of Card Styles (Use these when asked to create specifically):
-        - CLASSIC: Color: 'blue', Shape: 'rectangle'. Professional and clear.
-        - NICE: Color: 'purple', Shape: 'circle'. Elegant and stylish.
-        - GREEN: Color: 'green', Shape: 'rectangle'. For growth and success.
-        - NOTE / POST-IT: Color: 'yellow', Shape: 'rectangle', Type: 'note'. Smaller, quick notes.
+        Definitions of Card Styles(Use these when asked to create specifically):
+- CLASSIC: Color: 'blue', Shape: 'rectangle'.Professional and clear.
+        - NICE: Color: 'purple', Shape: 'circle'.Elegant and stylish.
+        - GREEN: Color: 'green', Shape: 'rectangle'.For growth and success.
+        - NOTE / POST - IT: Color: 'yellow', Shape: 'rectangle', Type: 'note'.Smaller, quick notes.
         
         Advanced Capabilities:
-        1. NESTING: If the user says "create X in Y", find Y's ID and set 'parentId' in 'cardData'.
-        2. CAMERA CONTROL: Use 'camera_focus' to center the view on a card.
-        3. SCHEDULING: Use 'schedule_card' to set a start time (ISO string).
+1. NESTING: If the user says "create X in Y", find Y's ID and set 'parentId' in 'cardData'.
+2. CAMERA CONTROL: Use 'camera_focus' to center the view on a card.
+        3. SCHEDULING: Use 'schedule_card' to set a start time(ISO string).
         4. TIMER MODES: Use 'update_card' with 'updates: { timerFillMode: "pizza-slice" }' for "pizza" mode, or "radial-card-fill" for "bar" mode. "none" is numeric.
         5. FUZZY MATCHING: If the user mentions a card title, find the closest ID from context.
         
         User Query: ${query}
 
-        Instructions:
-        - Return a list of actions.
+Instructions:
+- Return a list of actions.
         - Always include a 'chat' action with a concise, fun response.
         - If asked to "planejar" or "dicas", analyze current cards and suggest connections or moves.
         `;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+        const response = await getCurrentAi().models.generateContent({
+            model: "gemini-2.0-flash",
             contents: systemPrompt,
             config: {
                 responseMimeType: "application/json",
@@ -648,17 +674,17 @@ export const scheduleTasks = async (
 ): Promise<Array<{ id: string; start: string; end: string }>> => {
 
     try {
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+        const response = await getCurrentAi().models.generateContent({
+            model: "gemini-2.0-flash",
             contents: `
                 I have a list of new tasks to schedule between ${startTimeISO} and ${endTimeISO}.
-                
-                Constraints:
-                1. You must find empty time slots for the NEW TASKS.
+
+Constraints:
+1. You must find empty time slots for the NEW TASKS.
                 2. You MUST NOT overlap with the following BUSY SLOTS: ${JSON.stringify(busySlots)}.
-                3. The new tasks are: ${JSON.stringify(tasksToSchedule)}.
-                4. Schedule as many new tasks as possible in the sequence provided, filling gaps.
-                ${userProfile ? `5. Consider the USER PROFILE for better placement: ${JSON.stringify(userProfile)}. Avoid scheduling near sleepTime (${userProfile.sleepTime}) or during peak energy times if the task is minor (or vice versa). Preference: ${userProfile.preferredPeriod}.` : ''}
+3. The new tasks are: ${JSON.stringify(tasksToSchedule)}.
+4. Schedule as many new tasks as possible in the sequence provided, filling gaps.
+    ${userProfile ? `5. Consider the USER PROFILE for better placement: ${JSON.stringify(userProfile)}. Avoid scheduling near sleepTime (${userProfile.sleepTime}) or during peak energy times if the task is minor (or vice versa). Preference: ${userProfile.preferredPeriod}.` : ''}
                 
                 Return a JSON array of scheduled objects.
             `,
@@ -690,9 +716,9 @@ export const scheduleTasks = async (
 
 export const estimateTaskDuration = async (title: string, description: string): Promise<number> => {
     try {
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: `Estimate the duration in minutes for this task: "${title}". Description: "${description}". Return ONLY the number (integer). If unclear, default to 15.`,
+        const response = await getCurrentAi().models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: `Estimate the duration in minutes for this task: "${title}".Description: "${description}".Return ONLY the number(integer).If unclear, default to 15.`,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -731,32 +757,32 @@ export async function optimizeTaskSchedule(
     Analyze this task and the user's history to determine the optimal timing configuration.
     
     Current Task:
-    Title: ${card.title}
-    Description: ${card.description}
+Title: ${card.title}
+Description: ${card.description}
     
-    User History (Completed Tasks):
+    User History(Completed Tasks):
     ${historySummary}
-    
-    Determine:
-    1. Total Duration (in seconds)
-    2. Pre-Time (warmup in seconds)
-    3. Post-Time (cooldown in seconds)
-    4. Intervals (count and duration in seconds)
-    5. Reasoning (Explain why you chose these times based on the task type and history)
+
+Determine:
+1. Total Duration(in seconds)
+2. Pre - Time(warmup in seconds)
+3. Post - Time(cooldown in seconds)
+4. Intervals(count and duration in seconds)
+5. Reasoning(Explain why you chose these times based on the task type and history)
     
     Return ONLY JSON:
-    {
-      "timerTotal": number,
-      "preTime": number,
-      "postTime": number,
-      "intervals": { "count": number, "duration": number },
-      "reasoning": "string"
-    }
-    `;
+{
+    "timerTotal": number,
+        "preTime": number,
+            "postTime": number,
+                "intervals": { "count": number, "duration": number },
+    "reasoning": "string"
+}
+`;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-latest',
+        const response = await getCurrentAi().models.generateContent({
+            model: 'gemini-2.0-flash',
             contents: [{ parts: [{ text: prompt }] }],
             config: { responseMimeType: 'application/json' }
         });
@@ -789,25 +815,25 @@ export const analyzeScheduleDeeply = async (cards: CardData[]): Promise<Array<{ 
             currentHistory: c.aiThoughts?.map(t => t.content).join(" | ") || "No history."
         }));
 
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+        const response = await getCurrentAi().models.generateContent({
+            model: "gemini-2.0-flash",
             contents: `
                 Perform a deep cognitive analysis on this user's task list to improve their productivity habits.
                 
                 For EACH task, I want you to:
-                1. Reflect on the task's meaning and complexity.
-                2. Consult the 'currentHistory' (previous thoughts) if available.
+1. Reflect on the task's meaning and complexity.
+2. Consult the 'currentHistory'(previous thoughts) if available.
                 3. Estimate realistic duration vs assigned duration.
-                4. Identify potential psychological barriers (procrastination triggers) or habits.
-                5. Think about the sequence (what should come before/after).
-                6. ANALYZE BEHAVIORAL METRICS (if available): Look for 'delaySeconds' and 'negativeTime' in the 'metrics' array. 
-                   - High delay before starting timer = Procrastination/Hesitation.
-                   - High negative time (overtime) = Obsession or Flow State (or just forgetting to stop).
+                4. Identify potential psychological barriers(procrastination triggers) or habits.
+                5. Think about the sequence(what should come before / after).
+                6. ANALYZE BEHAVIORAL METRICS(if available): Look for 'delaySeconds' and 'negativeTime' in the 'metrics' array. 
+                   - High delay before starting timer = Procrastination / Hesitation.
+                   - High negative time(overtime) = Obsession or Flow State(or just forgetting to stop).
                    - Delay in intervals = Distraction.
+
+    Tasks: ${JSON.stringify(taskList)}
                 
-                Tasks: ${JSON.stringify(taskList)}
-                
-                Return a JSON array where each object contains the card 'id' and a 'thought' string. The thought string should be a concise but deep paragraph of your analysis.
+                Return a JSON array where each object contains the card 'id' and a 'thought' string.The thought string should be a concise but deep paragraph of your analysis.
             `,
             config: {
                 thinkingConfig: { thinkingBudget: 2048 }, // Enable Deep Thinking
@@ -850,15 +876,15 @@ export const analyzePomodoroLap = async (
     try {
         const parts: any[] = [];
 
-        const textPrompt = `Você é um assistente de produtividade. Analise este momento de foco do usuário (Lap #${lapIndex}, duração: ${Math.round(lapDurationSeconds / 60)}min ${lapDurationSeconds % 60}s).
-${transcription ? `Transcrição do que o usuário falou: "${transcription}"` : 'Sem transcrição de áudio.'}
+        const textPrompt = `Você é um assistente de produtividade.Analise este momento de foco do usuário(Lap #${lapIndex}, duração: ${Math.round(lapDurationSeconds / 60)}min ${lapDurationSeconds % 60}s).
+    ${transcription ? `Transcrição do que o usuário falou: "${transcription}"` : 'Sem transcrição de áudio.'}
 ${imageBase64 ? 'Uma imagem da câmera está incluída.' : 'Sem imagem disponível.'}
 
 Com base nisso, responda em JSON:
-- "title": Um título curto e preciso para esta sessão de foco (máx 6 palavras, em português)
-- "description": Uma descrição do que o usuário estava fazendo/pensando (1-2 frases, em português)
-- "recommendedMinutes": O tempo ideal recomendado para esta tarefa em minutos (número inteiro, baseado na complexidade observada)
-- "reasoning": Justificativa curta da recomendação de tempo (1 frase, em português)`;
+- "title": Um título curto e preciso para esta sessão de foco(máx 6 palavras, em português)
+    - "description": Uma descrição do que o usuário estava fazendo / pensando(1 - 2 frases, em português)
+        - "recommendedMinutes": O tempo ideal recomendado para esta tarefa em minutos(número inteiro, baseado na complexidade observada)
+            - "reasoning": Justificativa curta da recomendação de tempo(1 frase, em português)`;
 
         parts.push({ text: textPrompt });
 
@@ -872,8 +898,8 @@ Com base nisso, responda em JSON:
             });
         }
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-latest',
+        const response = await getCurrentAi().models.generateContent({
+            model: 'gemini-2.0-flash',
             contents: [{ parts }],
             config: {
                 responseMimeType: 'application/json',
@@ -896,7 +922,7 @@ Com base nisso, responda em JSON:
     } catch (error) {
         console.error('Pomodoro lap AI analysis error:', error);
         return {
-            title: `Lap #${lapIndex}`,
+            title: `Lap #${lapIndex} `,
             description: transcription || 'Sessão de foco registrada.',
             recommendedMinutes: 25,
             reasoning: 'Tempo padrão aplicado.'
@@ -924,31 +950,31 @@ export const getDreamInteractionResponse = async (
         const systemPrompt = `Você é a Chronos IA, especializada em mapeamento de processos para objetivos e sonhos.
         
         CONTEXTO DO SONHO:
-        - Descrição: ${dream.dreamDescription}
-        - Desafios Vencidos: ${dream.challengesOvercome}
-        - Desejado por alguém que quer ser: ${dream.userProfession}
+- Descrição: ${dream.dreamDescription}
+- Desafios Vencidos: ${dream.challengesOvercome}
+- Desejado por alguém que quer ser: ${dream.userProfession}
         
         PROFISSIONAL INTERAGINDO:
-        - Profissão: ${proProfession}
+- Profissão: ${proProfession}
         
         OBJETIVO DA SESSÃO:
         Fazer perguntas ao profissional de ${proProfession} para descobrir DETALHES PROCESSUAIS que só um especialista sabe sobre como realizar este sonho.
         A cada resposta, você deve:
-        1. Analisar tecnicamente.
-        2. Identificar possíveis cards de tarefas (processos).
-        3. Fazer uma nova pergunta ou finalizar se tiver cards suficientes (mínimo 3, máximo 5).
+1. Analisar tecnicamente.
+        2. Identificar possíveis cards de tarefas(processos).
+        3. Fazer uma nova pergunta ou finalizar se tiver cards suficientes(mínimo 3, máximo 5).
         
         HISTÓRICO DA CONVERSA:
         ${history.map(m => `${m.role.toUpperCase()}: ${m.text}`).join('\n')}
         
-        INSTRUÇÕES DE RESPOSTA (JSON):
-        - "text": Sua fala (em Português do Brasil, tom encorajador).
-        - "reasoning": Seu raciocínio lógico por trás dessa pergunta/conclusão.
-        - "status": 'active' para continuar a entrevista ou 'completed' se já tiver detalhes suficientes para 3-5 cards.
-        - "generatedCards": (Opcional, preencha quando status for 'completed') Lista de objetos com title, description, color, shape, timerTotal (em segundos).`;
+        INSTRUÇÕES DE RESPOSTA(JSON):
+- "text": Sua fala(em Português do Brasil, tom encorajador).
+- "reasoning": Seu raciocínio lógico por trás dessa pergunta / conclusão.
+        - "status": 'active' para continuar a entrevista ou 'completed' se já tiver detalhes suficientes para 3 - 5 cards.
+        - "generatedCards": (Opcional, preencha quando status for 'completed') Lista de objetos com title, description, color, shape, timerTotal(em segundos).`;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
+        const response = await getCurrentAi().models.generateContent({
+            model: "gemini-2.0-flash",
             contents: systemPrompt,
             config: {
                 thinkingConfig: { thinkingBudget: 1024 },

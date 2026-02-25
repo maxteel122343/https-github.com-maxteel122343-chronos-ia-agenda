@@ -22,9 +22,9 @@ const FeedPanel: React.FC<FeedPanelProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-y-0 right-0 w-[450px] z-[2000] bg-white/95 backdrop-blur-3xl border-l border-gray-100 shadow-[-40px_0_80px_rgba(0,0,0,0.08)] flex flex-col animate-in slide-in-from-right duration-700 cubic-bezier(0.4, 0, 0.2, 1)">
+        <div className="fixed inset-0 md:inset-y-0 md:right-0 md:left-auto w-full md:w-[450px] z-[4000] bg-white/95 backdrop-blur-3xl border-l border-gray-100 shadow-[-40px_0_80px_rgba(0,0,0,0.08)] flex flex-col animate-in slide-in-from-right duration-700 cubic-bezier(0.4, 0, 0.2, 1)">
             {/* Header */}
-            <div className="p-10 border-b border-gray-50/50">
+            <div className="md:p-10 p-4 border-b border-gray-50/50">
                 <div className="flex justify-between items-center mb-8">
                     <div className="flex items-center gap-4">
                         <div className="w-14 h-14 bg-blue-50 rounded-[24px] flex items-center justify-center text-blue-600 shadow-sm border border-blue-100/50 rotate-3">
@@ -56,7 +56,7 @@ const FeedPanel: React.FC<FeedPanelProps> = ({
             </div>
 
             {/* Feed List */}
-            <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto md:p-10 p-4 space-y-8 md:space-y-10 custom-scrollbar">
                 {posts.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-300 opacity-60">
                         <div className="w-20 h-20 bg-gray-50 rounded-[32px] flex items-center justify-center mb-6 border border-gray-100 shadow-inner">
@@ -149,7 +149,7 @@ const FeedPanel: React.FC<FeedPanelProps> = ({
             </div>
 
             {/* Sticky Interaction Footer */}
-            <div className="p-10 bg-white/50 border-t border-gray-100 backdrop-blur-md">
+            <div className="md:p-10 p-4 bg-white/50 border-t border-gray-100 backdrop-blur-md">
                 <button
                     className="w-full bg-dark-900 text-white py-5 rounded-[28px] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                 >

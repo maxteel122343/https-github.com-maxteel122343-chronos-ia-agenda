@@ -300,14 +300,14 @@ const CalendarModal: React.FC<CalendarModalProps> = ({ isOpen, onClose, events, 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-dark-800 border border-white/10 rounded-xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl overflow-hidden relative">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[4000] flex items-center justify-center md:p-4 p-0">
+            <div className="bg-dark-800 border border-white/10 rounded-none md:rounded-xl w-full max-w-6xl h-full md:h-[90vh] flex flex-col shadow-2xl overflow-hidden relative">
 
                 {/* Header */}
-                <div className="p-4 border-b border-white/10 flex justify-between items-center bg-dark-900">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                            <CalendarIcon className="text-green-500" /> Calendar & AI Schedule
+                <div className="p-3 md:p-4 border-b border-white/10 flex justify-between items-center bg-dark-900">
+                    <div className="flex items-center gap-2 md:gap-4 overflow-hidden">
+                        <h2 className="text-sm md:text-xl font-bold text-white flex items-center gap-2 whitespace-nowrap">
+                            <CalendarIcon className="text-green-500 shrink-0" size={18} md:size={20} /> <span className="hidden xs:inline">Calendar</span>
                         </h2>
                         <div className="flex bg-dark-800 rounded p-1 border border-white/5">
                             <button
@@ -347,7 +347,7 @@ const CalendarModal: React.FC<CalendarModalProps> = ({ isOpen, onClose, events, 
                     {activeTab === 'calendar' && (
                         <div className="flex w-full h-full">
                             {/* Left: Sidebar (Month Navigator & Scheduler Controls) */}
-                            <div className="w-80 border-r border-white/10 flex flex-col bg-dark-900/80 backdrop-blur">
+                            <div className="hidden lg:flex w-80 border-r border-white/10 flex-col bg-dark-900/80 backdrop-blur">
 
                                 {/* Month Nav */}
                                 <div className="p-4 flex items-center justify-between border-b border-white/5">
@@ -558,7 +558,7 @@ const CalendarModal: React.FC<CalendarModalProps> = ({ isOpen, onClose, events, 
                                         {/* Time Grid */}
                                         {HOURS.map(hour => (
                                             <div key={hour} className="absolute w-full border-t border-white/5 flex group hover:bg-white/[0.02]" style={{ top: `${hour * 60}px`, height: '60px' }}>
-                                                <div className="w-16 text-right pr-4 text-xs text-gray-500 -mt-2 group-hover:text-gray-300">
+                                                <div className="w-12 md:w-16 text-right pr-2 md:pr-4 text-[10px] md:text-xs text-gray-500 -mt-2 group-hover:text-gray-300">
                                                     {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
                                                 </div>
                                                 <div className="flex-1" />
@@ -586,7 +586,7 @@ const CalendarModal: React.FC<CalendarModalProps> = ({ isOpen, onClose, events, 
                                             return (
                                                 <div
                                                     key={card.id}
-                                                    className={`group absolute left-20 right-4 rounded-md border-l-4 p-2 text-xs shadow-lg transition hover:scale-[1.01] hover:z-30 cursor-pointer overflow-hidden ${colorClass}`}
+                                                    className={`group absolute left-14 md:left-20 right-2 md:right-4 rounded-md border-l-4 p-2 text-[10px] md:text-xs shadow-lg transition hover:scale-[1.01] hover:z-30 cursor-pointer overflow-hidden ${colorClass}`}
                                                     style={style}
                                                 >
                                                     <div className="flex justify-between items-start">

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { GalleryItem, CardData, Connection, CameraState, CardColor, CardShape, ChatMessage, EventGroup, CardVisualSettings, CardBehaviorSettings, Attachment, NavigationFilters, FeedPost, AiCallState, UserAiProfile, DreamCard, DreamInteractionSession, SharedGif, DreamRequest, ProcessPack, CanvasFilters, CanvasStats } from './types';
 import CardNode from './components/CardNode';
 import ConnectionLayer from './components/ConnectionLayer';
@@ -16,7 +16,7 @@ import ScheduleModal from './components/ScheduleModal';
 import CardListSidebar from './components/CardListSidebar';
 import SidebarSettingsModal from './components/SidebarSettingsModal';
 import { SidebarSettings } from './types';
-import { getTaskSuggestions, AiAction, speakText, connectLiveSession, optimizeTaskSchedule, estimateTaskDuration, setGeminiApiKey, validateApiKey, scheduleTasks, getDreamInteractionResponse } from './services/geminiService';
+import { getTaskSuggestions, AiAction, speakText as serviceSpeakText, connectLiveSession, optimizeTaskSchedule, estimateTaskDuration, setGeminiApiKey, validateApiKey, scheduleTasks, getDreamInteractionResponse } from './services/geminiService';
 import ApiKeyModal from './components/ApiKeyModal';
 import { Plus, Image as ImageIcon, Search, Filter, MessageSquare, Target, List, ListOrdered, Mic, Send, X, CornerDownRight, Spline, Minus, Activity, Type, MicOff, Calendar, Folder, Maximize2, Minimize2, ChevronLeft, ChevronRight, Square, Lock, Unlock, Headphones, CalendarCheck2, Settings, Layers, Eye, AudioLines, StickyNote, Keyboard, ScrollText, CalendarDays, CalendarRange, LogOut, LogIn, Tag, Zap, User, TrendingUp, Cloud, Film, Video, Package, Bell, Play, BarChart3, Trash2, CloudUpload, ZoomIn, ZoomOut, Wrench, Bot } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
@@ -53,9 +53,10 @@ function App() {
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
-            if (!target.closest('[data-filter-popover]') && !target.closest('[data-tools-popover]')) {
+            if (!target.closest('[data-filter-popover]') && !target.closest('[data-tools-popover]') && !target.closest('[data-ai-settings]')) {
                 setIsFilterPopoverOpen(false);
                 setIsToolsPopoverOpen(false);
+                setIsAiSettingsOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -82,6 +83,14 @@ function App() {
     const audioChunksRef = useRef<Blob[]>([]);
     const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const [tagSearchQuery, setTagSearchQuery] = useState('');
+    const [aiVoice, setAiVoice] = useState('Puck'); // Default for live, speakText often uses Charon
+    const [aiLanguage, setAiLanguage] = useState('Português (Brasil)');
+    const [isAiSettingsOpen, setIsAiSettingsOpen] = useState(false);
+
+    // Wrapper for speakText to always use the user-selected voice
+    const speakText = useCallback((text: string) => {
+        return serviceSpeakText(text, aiVoice);
+    }, [aiVoice]);
 
     // Alarm/Scheduling Check
     useEffect(() => {
@@ -160,29 +169,67 @@ function App() {
     }, []);
 
     const handleSaveApiKey = async (key: string) => {
-        setGeminiApiKey(key);
-        let isValid = await validateApiKey();
+        if (!key?.trim()) return false;
+        setAiStatus('idle');
 
-        if (isValid) {
+        // Helper to test a key and set it active if valid
+        const tryKey = async (k: string): Promise<boolean> => {
+            setGeminiApiKey(k);
+            let valid = await validateApiKey();
+            // One retry after transient failure
+            if (!valid) {
+                await new Promise(r => setTimeout(r, 1500));
+                valid = await validateApiKey();
+            }
+            return valid;
+        };
+
+        // 1. Try user's key first
+        if (await tryKey(key)) {
             setAiStatus('connected');
             setApiKey(key);
             return true;
-        } else {
-            // Attempt fallback to backup key
-            const backupKey = (import.meta as any).env.VITE_BACKUP_GEMINI_API_KEY;
-            if (backupKey && key !== backupKey) {
-                console.log("User key failed, trying backup API key...");
-                setGeminiApiKey(backupKey);
-                isValid = await validateApiKey();
-                if (isValid) {
-                    setAiStatus('connected');
-                    setApiKey(backupKey);
-                    return true;
-                }
-            }
-            setAiStatus('error');
-            return false;
         }
+
+        console.warn('[AI] User key failed. Falling back to default env key...');
+
+        // 2. Fallback: default env key (VITE_GEMINI_API_KEY)
+        const envKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+        if (envKey && envKey !== key) {
+            if (await tryKey(envKey)) {
+                setAiStatus('connected');
+                // Keep the user's original key saved so they can re-try later,
+                // but run AI on the env key transparently
+                setApiKey(key);
+                return true;
+            }
+        }
+
+        // 3. Fallback: backup env key (VITE_BACKUP_GEMINI_API_KEY)
+        const backupKey = (import.meta as any).env.VITE_BACKUP_GEMINI_API_KEY;
+        if (backupKey && backupKey !== key && backupKey !== envKey) {
+            console.warn('[AI] Default key failed. Trying backup key...');
+            if (await tryKey(backupKey)) {
+                setAiStatus('connected');
+                setApiKey(key);
+                return true;
+            }
+        }
+
+        // 4. Fallback: secondary env key or hardcoded final key
+        const secondaryKey = (import.meta as any).env.VITE_GEMINI_API_KEY_SECONDARY || 'AIzaSyDlbQg25TuIfYk5-YGA9DowvtiL8XHyihs';
+        if (secondaryKey !== key && secondaryKey !== envKey && secondaryKey !== backupKey) {
+            console.warn('[AI] Backup key failed. Trying secondary fallback key...');
+            if (await tryKey(secondaryKey)) {
+                setAiStatus('connected');
+                setApiKey(key);
+                return true;
+            }
+        }
+
+        // All keys exhausted
+        setAiStatus('error');
+        return false;
     };
 
     const [cardVisualSettings, setCardVisualSettings] = useState<CardVisualSettings>({
@@ -424,15 +471,23 @@ function App() {
 
     const [editingTimerCardId, setEditingTimerCardId] = useState<string | null>(null);
     const [isAiOptimizing, setIsAiOptimizing] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    const [isMobile, setIsMobile] = useState(() => {
+        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const isSmall = window.innerWidth < 1024; // Increased threshold for tablets
+        return isTouch && isSmall;
+    });
 
     useEffect(() => {
         const handleResize = () => {
-            setIsMobile(window.innerWidth < 768);
+            const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const isSmall = window.innerWidth < 1024;
+            setIsMobile(isTouch && isSmall);
         };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
+
+    const isAnyModalOpen = isAuthModalOpen || isApiKeyModalOpen || isGalleryModalOpen || isEventModalOpen || isCalendarModalOpen || isTaskOrderModalOpen || isSettingsModalOpen || isShortcutsModalOpen || isHistoryPanelOpen || isUserProfileModalOpen || isCanvasControlModalOpen || isCardListOpen || isSidebarSettingsOpen || isFeedOpen || isDreamModalOpen || isDreamInteractionOpen || isGifGalleryOpen || isGifConverterOpen || isDreamSprintOpen || isPackGalleryOpen || !!schedulingCardId || !!editingTimerCardId;
 
     const [isLiveSessionActive, setIsLiveSessionActive] = useState(false);
     const [liveVideoStream, setLiveVideoStream] = useState<MediaStream | null>(null);
@@ -440,8 +495,41 @@ function App() {
 
     // Focus & Navigation State
     const [isFocusMode, setIsFocusMode] = useState(false);
-    const [isCameraLocked, setIsCameraLocked] = useState(true); // TRUE = System controls camera (Task Order), FALSE = User controls (Free Look)
+    const [isCameraLocked, setIsCameraLocked] = useState(true);
+    const toggleCameraLock = () => setIsCameraLocked(prev => !prev);
     const [activeRoutineIds, setActiveRoutineIds] = useState<string[]>([]); // Subset of card IDs for the current routine
+    const [activeTaskIndex, setActiveTaskIndex] = useState(0);
+
+    const closeAllModals = () => {
+        setIsTaskOrderModalOpen(false);
+        setIsEventModalOpen(false);
+        setIsGalleryModalOpen(false);
+        setIsCalendarModalOpen(false);
+        setIsSettingsModalOpen(false);
+        setIsUserProfileModalOpen(false);
+        setIsDreamModalOpen(false);
+        setIsGifGalleryOpen(false);
+        setIsGifConverterOpen(false);
+        setIsPackGalleryOpen(false);
+        setIsShortcutsModalOpen(false);
+        setIsSidebarSettingsOpen(false);
+        setIsApiKeyModalOpen(false);
+        setIsCardListOpen(false);
+        setIsHistoryPanelOpen(false);
+        setIsChatOpen(false);
+        setIsFeedOpen(false);
+        setIsCanvasControlModalOpen(false);
+        setIsFilterPopoverOpen(false);
+        setIsToolsPopoverOpen(false);
+        setSchedulingCardId(null);
+        setEditingTimerCardId(null);
+    };
+
+    const toggleModal = (setter: (val: boolean) => void, currentVal: boolean) => {
+        const nextVal = !currentVal;
+        closeAllModals();
+        setter(nextVal);
+    };
 
     // Connection Visual Settings
     const [connectionStyle, setConnectionStyle] = useState<'curved' | 'straight'>('curved');
@@ -508,6 +596,10 @@ function App() {
                         if (s.cardVisualSettings) setCardVisualSettings(prev => ({ ...prev, ...s.cardVisualSettings }));
                         if (s.cardBehaviorSettings) setCardBehaviorSettings(prev => ({ ...prev, ...s.cardBehaviorSettings }));
                         if (s.shortcuts) setShortcuts(prev => ({ ...prev, ...s.shortcuts }));
+                        // Restore user-specific API key
+                        if (s.geminiApiKey) {
+                            handleSaveApiKey(s.geminiApiKey);
+                        }
                     }
                     setDataLoaded(true);
                 } catch (err) {
@@ -524,10 +616,11 @@ function App() {
             persistenceService.saveProfile(user.id, {
                 cardVisualSettings,
                 cardBehaviorSettings,
-                shortcuts
+                shortcuts,
+                ...(apiKey ? { geminiApiKey: apiKey } : {})
             });
         }
-    }, [user, dataLoaded, cardVisualSettings, cardBehaviorSettings, shortcuts]);
+    }, [user, dataLoaded, cardVisualSettings, cardBehaviorSettings, shortcuts, apiKey]);
 
     // Sync refs
     useEffect(() => { isVoiceModeRef.current = isVoiceMode; }, [isVoiceMode]);
@@ -1887,9 +1980,7 @@ function App() {
         }
     };
 
-    const toggleCameraLock = () => {
-        setIsCameraLocked(!isCameraLocked);
-    };
+
 
     const handleGroupByTags = useCallback(() => {
         setCards(prev => {
@@ -1933,41 +2024,123 @@ function App() {
         speakText("Cards organized by tags.");
     }, []);
 
-    // --- Live Session Handler ---
+    // --- Camera-only handler (independent of AI) ---
+    const handleToggleCamera = useCallback(async () => {
+        if (isVisionModeOpen) {
+            // Close camera: stop tracks and disconnect AI if active
+            if (liveVideoStream) {
+                liveVideoStream.getTracks().forEach(t => t.stop());
+                setLiveVideoStream(null);
+            }
+            if (isLiveSessionActive && disconnectLiveSessionRef.current) {
+                disconnectLiveSessionRef.current();
+                disconnectLiveSessionRef.current = null;
+                setIsLiveSessionActive(false);
+            }
+            setIsVisionModeOpen(false);
+            return;
+        }
+
+        // Open camera independently — always works regardless of AI
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode },
+                audio: false
+            });
+            setLiveVideoStream(stream);
+            setIsVisionModeOpen(true);
+
+            // If AI is connected, try to attach live session on top
+            if (aiStatus === 'connected' && !isLiveSessionActive && !isConnectingRef.current) {
+                isConnectingRef.current = true;
+                if (isVoiceMode) setIsVoiceMode(false);
+                const disconnect = await connectLiveSession(
+                    (habit, implication) => {
+                        setCards(prev => {
+                            let insightsCard = prev.find(c => c.title === "🧠 User Insights");
+                            if (!insightsCard) {
+                                const newCard: CardData = {
+                                    id: crypto.randomUUID(),
+                                    x: -camera.x + 100,
+                                    y: -camera.y + 100,
+                                    title: "🧠 User Insights",
+                                    description: "AI-observed habits and behavioral patterns.",
+                                    color: 'purple',
+                                    timerTotal: 0,
+                                    timerRemaining: 0,
+                                    status: 'pending',
+                                    notes: [],
+                                    tags: ['ai-insights'],
+                                    completionCount: 0,
+                                    attachments: [],
+                                    aiThoughts: [{ timestamp: Date.now(), content: `OBSERVATION: ${habit}\nIMPLICATION: ${implication}` }],
+                                };
+                                if (user) persistenceService.saveCard(user.id, newCard).catch(console.error);
+                                return [...prev, newCard];
+                            } else {
+                                const finalUpdate = prev.map(c => c.id === insightsCard!.id ? { ...c, aiThoughts: [...(c.aiThoughts || []), { timestamp: Date.now(), content: `OBSERVATION: ${habit}\nIMPLICATION: ${implication}` }] } : c);
+                                if (user) { const uc = finalUpdate.find(x => x.id === insightsCard!.id); if (uc) persistenceService.saveCard(user.id, uc).catch(console.error); }
+                                return finalUpdate;
+                            }
+                        });
+                    },
+                    (isActive) => {
+                        setIsLiveSessionActive(isActive);
+                        isConnectingRef.current = false;
+                        if (!isActive) {
+                            // AI disconnected but camera stays open
+                            setIsLiveSessionActive(false);
+                        }
+                    },
+                    (aiStream) => {
+                        // AI may provide its own stream; prefer user-opened camera
+                        if (!liveVideoStream) setLiveVideoStream(aiStream);
+                    },
+                    (text, isUser) => {
+                        setVoiceChatMessages(prev => [...prev, { id: crypto.randomUUID(), text, isUser, timestamp: Date.now() }]);
+                    },
+                    facingMode,
+                    (cardId, newStartTime) => { handleScheduleCard(cardId, newStartTime, 0); },
+                    cards,
+                    aiVoice,
+                    aiLanguage
+                );
+                disconnectLiveSessionRef.current = disconnect as any;
+            }
+        } catch (err) {
+            console.error('Camera access denied or unavailable:', err);
+            alert('Não foi possível acessar a câmera. Verifique as permissões do navegador.');
+        }
+    }, [isVisionModeOpen, liveVideoStream, isLiveSessionActive, aiStatus, isVoiceMode, facingMode, camera, user, cards]);
+
+    // --- Live Session Handler (Audio/VoiceChat only — camera already handled separately) ---
     const handleToggleLiveSession = useCallback(async (mode: 'audio' | 'vision' | 'voice_chat' = 'audio') => {
+        // Redirect vision mode to the new independent camera handler
+        if (mode === 'vision') {
+            handleToggleCamera();
+            return;
+        }
+
         // Prevent race conditions
         if (isConnectingRef.current) return;
 
         if (isLiveSessionActive) {
-            // If active, we might just be switching modes or closing
-            if (mode === 'vision' && !isVisionModeOpen) {
-                setIsVisionModeOpen(true);
-                setIsVoiceChatOpen(false);
-                return;
-            }
             if (mode === 'voice_chat' && !isVoiceChatOpen) {
                 setIsVoiceChatOpen(true);
-                setIsVisionModeOpen(false);
                 return;
             }
 
-            // Otherwise disconnect
+            // Disconnect audio/voice_chat session
             if (disconnectLiveSessionRef.current) {
                 disconnectLiveSessionRef.current();
                 disconnectLiveSessionRef.current = null;
             }
             setIsLiveSessionActive(false);
-            setLiveVideoStream(null);
-            setIsVisionModeOpen(false);
             setIsVoiceChatOpen(false);
         } else {
-            // Start Session
+            // Start audio/voice_chat session only
             isConnectingRef.current = true;
-
-            // Turn off legacy voice mode to prevent mic conflict
             if (isVoiceMode) setIsVoiceMode(false);
-
-            if (mode === 'vision') setIsVisionModeOpen(true);
             if (mode === 'voice_chat') setIsVoiceChatOpen(true);
 
             const disconnect = await connectLiveSession(
@@ -2024,19 +2197,15 @@ function App() {
                 },
                 (isActive) => {
                     setIsLiveSessionActive(isActive);
-                    isConnectingRef.current = false; // Reset connecting flag
+                    isConnectingRef.current = false;
                     if (!isActive) {
-                        setLiveVideoStream(null);
-                        // Close panels if session ends unexpectedly
-                        setIsVisionModeOpen(false);
                         setIsVoiceChatOpen(false);
                     }
                 },
-                (stream) => {
-                    setLiveVideoStream(stream);
+                (_stream) => {
+                    // For audio/voice_chat sessions we don't update video stream
                 },
                 (text, isUser) => {
-                    // Handle Transcript
                     setVoiceChatMessages(prev => [...prev, {
                         id: crypto.randomUUID(),
                         text,
@@ -2047,24 +2216,17 @@ function App() {
                 facingMode,
                 (cardId, newStartTime) => {
                     handleScheduleCard(cardId, newStartTime, 0);
-                    // Feedback visual/sonoro pode ser adicionado aqui se desejar
                 },
-                cards
+                cards,
+                aiVoice,
+                aiLanguage
             );
             disconnectLiveSessionRef.current = disconnect as any;
         }
-    }, [isLiveSessionActive, camera, isVisionModeOpen, isVoiceChatOpen, isVoiceMode, user, facingMode]);
+    }, [isLiveSessionActive, isVoiceChatOpen, isVoiceMode, handleToggleCamera, facingMode]);
 
-    // Auto-start live session on mount
-    useEffect(() => {
-        // Small delay to ensure permissions are ready and UI is mounted
-        const timer = setTimeout(() => {
-            if (!isLiveSessionActive && !disconnectLiveSessionRef.current) {
-                handleToggleLiveSession();
-            }
-        }, 1000);
-        return () => clearTimeout(timer);
-    }, []);
+    // NOTE: Live session no longer auto-starts on mount.
+    // Camera and AI are now independent — user opens camera manually via the Vision button.
 
     // --- Zoom to Cursor Logic ---
     const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -2195,7 +2357,13 @@ function App() {
                 setConnectingMousePos({ x: worldX, y: worldY });
             }
         } else if (isDragging && (!isFocusMode || !isCameraLocked)) {
-            setCamera(prev => ({ ...prev, x: prev.x + e.movementX, y: prev.y + e.movementY }));
+            const totalDist = Math.sqrt(
+                Math.pow(e.clientX - dragStart.x, 2) +
+                Math.pow(e.clientY - dragStart.y, 2)
+            );
+            if (totalDist > 3) {
+                setCamera(prev => ({ ...prev, x: prev.x + e.movementX, y: prev.y + e.movementY }));
+            }
         }
 
         const end = performance.now();
@@ -2212,6 +2380,8 @@ function App() {
         setDraggingCardId(null);
         setIsResizing(false);
         setResizeStartInfo(null);
+        lastTouchRef.current = null;
+        initialPinchDistanceRef.current = null;
     }, [connectingFromId]);
 
     const handleTouchStart = (e: React.TouchEvent) => {
@@ -2229,7 +2399,7 @@ function App() {
                 Math.pow(touch2.clientY - touch1.clientY, 2)
             );
             initialPinchDistanceRef.current = dist;
-            setIsDragging(false); // Stop panning when zooming
+            setIsDragging(false);
         }
     };
 
@@ -2238,6 +2408,13 @@ function App() {
             const touch = e.touches[0];
             const dx = touch.clientX - lastTouchRef.current.x;
             const dy = touch.clientY - lastTouchRef.current.y;
+
+            const totalDist = Math.sqrt(
+                Math.pow(touch.clientX - (dragStart.x || 0), 2) +
+                Math.pow(touch.clientY - (dragStart.y || 0), 2)
+            );
+
+            if (totalDist < 5) return;
 
             if (draggingCardId && !isFocusMode) {
                 const worldDx = dx / camera.zoom;
@@ -2256,7 +2433,7 @@ function App() {
             );
 
             const zoomFactor = dist / initialPinchDistanceRef.current;
-            const sensitivity = 0.5; // Adjust zoom sensitivity
+            const sensitivity = 0.5;
             const newZoom = Math.min(Math.max(0.1, camera.zoom * (1 + (zoomFactor - 1) * sensitivity)), 5);
 
             setCamera(prev => ({ ...prev, zoom: newZoom }));
@@ -2264,17 +2441,10 @@ function App() {
         }
     };
 
-    const handleTouchEnd = (e: React.TouchEvent) => {
-        setIsDragging(false);
-        setDraggingCardId(null);
-        lastTouchRef.current = null;
-        initialPinchDistanceRef.current = null;
-    };
-
-    const handleMouseUp = (e: React.MouseEvent) => {
+    const handleFinishDrag = useCallback((clientX: number, clientY: number) => {
         if (connectingFromId) {
             if (!isFocusMode) {
-                const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY);
+                const { x: canvasX, y: canvasY } = screenToCanvas(clientX, clientY);
                 setConnectionDropMenu({ x: canvasX, y: canvasY, parentId: connectingFromId });
             }
             setConnectingFromId(null);
@@ -2283,7 +2453,7 @@ function App() {
         if (draggingCardId) {
             const draggedCard = cards.find(c => c.id === draggingCardId);
             if (draggedCard) {
-                const { x: mouseX, y: mouseY } = screenToCanvas(e.clientX, e.clientY);
+                const { x: mouseX, y: mouseY } = screenToCanvas(clientX, clientY);
                 const parentCard = cardsToRender.find(c => {
                     if (c.id === draggingCardId) return false;
                     const cardWidth = c.width || (c.shape === 'circle' ? 256 : 256);
@@ -2300,7 +2470,6 @@ function App() {
                     if (draggedCard.type === 'note') {
                         handleUpdateCard(draggedCard.id, { parentId: parentCard.id, isInternal: true });
                     } else if (draggedCard.type === 'media' && draggedCard.attachments?.[0]) {
-                        // Attach media to the card and delete the media card
                         const mediaAttachment = draggedCard.attachments[0];
                         handleUpdateCard(parentCard.id, {
                             attachments: [...(parentCard.attachments || []), mediaAttachment]
@@ -2317,6 +2486,24 @@ function App() {
         setDraggingCardId(null);
         setIsResizing(false);
         setResizeStartInfo(null);
+        lastTouchRef.current = null;
+        initialPinchDistanceRef.current = null;
+    }, [connectingFromId, draggingCardId, cards, cardsToRender, screenToCanvas, isFocusMode, handleUpdateCard, deleteCard]);
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        const touch = e.changedTouches[0];
+        if (touch) {
+            handleFinishDrag(touch.clientX, touch.clientY);
+        } else {
+            setIsDragging(false);
+            setDraggingCardId(null);
+            lastTouchRef.current = null;
+            initialPinchDistanceRef.current = null;
+        }
+    };
+
+    const handleMouseUp = (e: React.MouseEvent) => {
+        handleFinishDrag(e.clientX, e.clientY);
     };
 
     const handleCanvasDrop = useCallback((e: React.DragEvent) => {
@@ -2353,25 +2540,25 @@ function App() {
 
                     handleAddCard(undefined, {
                         type: 'note',
-                        title: data.element.title || (data.element.type === 'calendar' ? 'Agenda' : 'Note'),
+                        title: data.element.title || (data.element.type === 'calendar' ? 'Agenda' : 'Nota ExtraÃ­da'),
                         description: data.element.type === 'calendar' ? '' : data.element.content,
                         x: canvasX,
                         y: canvasY,
-                        color: 'gray',
+                        color: data.element.type === 'calendar' ? 'blue' : 'gray',
                         width: 400,
                         height: 400,
                         visualSettings: {
-                            showTitle: false,
-                            showDescription: false,
+                            showTitle: true,
+                            showDescription: data.element.type !== 'calendar',
                             showTimer: false,
                             showImage: false,
-                            showCompleteBtn: false,
-                            showDeleteBtn: false,
-                            showSchedule: false,
+                            showCompleteBtn: true,
+                            showDeleteBtn: true,
+                            showSchedule: true,
                             showIntervals: false,
-                            showTags: false,
-                            showAttachmentIndicator: false,
-                            showAttachmentActions: false,
+                            showTags: true,
+                            showAttachmentIndicator: true,
+                            showAttachmentActions: true,
                             showLastCompleted: false,
                             showCompletionCount: false
                         },
@@ -2415,9 +2602,40 @@ function App() {
 
                 e.dataTransfer.dropEffect = 'move';
                 return;
+            } else {
+                // Handle external URL drops (e.g., dragging an image from a website)
+                const uriList = e.dataTransfer.getData('text/uri-list');
+                const plainText = e.dataTransfer.getData('text/plain');
+                const url = uriList || (plainText && plainText.startsWith('http') ? plainText : null);
+
+                if (url) {
+                    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY);
+                    const isImage = url.match(/\.(jpeg|jpg|gif|png|webp|avif)$/i);
+                    const isVideo = url.match(/\.(mp4|webm|ogg)$/i);
+                    const isAudio = url.match(/\.(mp3|wav|ogg)$/i);
+
+                    if (isImage || isVideo || isAudio) {
+                        const attachment: Attachment = {
+                            id: crypto.randomUUID(),
+                            type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
+                            url: url,
+                            timestamp: Date.now()
+                        };
+
+                        handleAddCard(undefined, {
+                            type: 'media',
+                            title: isImage ? 'Imagem da Web' : isVideo ? 'VÃ­deo da Web' : 'Ã udio da Web',
+                            description: '',
+                            x: canvasX,
+                            y: canvasY,
+                            attachments: [attachment]
+                        });
+                        return;
+                    }
+                }
             }
         } catch (err) {
-            console.error('Canvas drop JSON error', err);
+            console.error('Canvas drop processing error', err);
         }
 
         const files = Array.from(e.dataTransfer.files) as File[];
@@ -2461,6 +2679,21 @@ function App() {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
     };
+
+    // --- Popover Click Outside ---
+    useEffect(() => {
+        const handleClickOutsideModals = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (isFilterPopoverOpen && !target.closest('[data-filter-popover]')) {
+                setIsFilterPopoverOpen(false);
+            }
+            if (isToolsPopoverOpen && !target.closest('[data-tools-popover]')) {
+                setIsToolsPopoverOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutsideModals);
+        return () => document.removeEventListener('mousedown', handleClickOutsideModals);
+    }, [isFilterPopoverOpen, isToolsPopoverOpen]);
 
     // Keyboard Navigation & Shortcuts
     useEffect(() => {
@@ -2896,9 +3129,9 @@ function App() {
                 </div>
             )}
             {/* --- Toolbar --- */}
-            <div className={`fixed z-[1000] flex gap-2 transition-all duration-300 ${isFocusMode ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${isMobile ? 'bottom-4 left-0 right-0 justify-center px-4' : 'top-4 left-4 flex-col max-h-[calc(100vh-2rem)] overflow-visible no-select'}`}>
+            <div className={`fixed z-[3000] flex transition-all duration-300 ${isFocusMode || (isMobile && isAnyModalOpen) ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'} ${isMobile ? 'bottom-0 inset-x-0 justify-center p-0 pointer-events-none' : 'top-4 left-4 flex-col gap-2 max-h-[calc(100vh-2rem)] overflow-visible no-select'}`}>
                 {/* Scrollable creation section */}
-                <div className={`flex flex-col gap-2 shrink-0 ${isMobile ? 'flex-row items-center bg-dark-800/90 backdrop-blur-md border border-white/10 p-2 rounded-2xl shadow-2xl max-w-full overflow-x-auto' : 'bg-dark-800/80 backdrop-blur border border-white/10 p-2 rounded-lg shadow-xl max-h-[70vh] overflow-y-auto custom-scrollbar'}`}>
+                <div className={`flex pointer-events-auto ${isMobile ? 'flex-row items-center gap-2 bg-dark-800/95 backdrop-blur-xl border-t border-white/10 p-2 rounded-none shadow-[0_-10px_40px_rgba(0,0,0,0.5)] w-full overflow-x-auto scrollbar-hide' : 'flex-col gap-2 bg-dark-800/80 backdrop-blur border border-white/10 p-2 rounded-lg shadow-xl max-h-[70vh] overflow-y-auto custom-scrollbar'}`}>
                     {/* Card creation buttons */}
                     {sidebarSettings.showAddCard && (
                         <button onClick={() => handleAddCard()} className="p-2 bg-blue-600 rounded hover:bg-blue-500 transition tooltip-container group">
@@ -2949,29 +3182,29 @@ function App() {
 
                     {/* Tools */}
                     {sidebarSettings.showChat && (
-                        <button onClick={() => setIsChatOpen(!isChatOpen)} className="p-2 bg-purple-600 rounded hover:bg-purple-500 transition group">
+                        <button onClick={() => toggleModal(setIsChatOpen, isChatOpen)} className="p-2 bg-purple-600 rounded hover:bg-purple-500 transition group">
                             <MessageSquare size={20} />
                         </button>
                     )}
                     {sidebarSettings.showTaskOrder && (
-                        <button onClick={() => setIsTaskOrderModalOpen(true)} className="p-2 bg-gray-700 rounded hover:bg-gray-600 transition group" title="Ordered Task List">
+                        <button onClick={() => toggleModal(setIsTaskOrderModalOpen, isTaskOrderModalOpen)} className="p-2 bg-gray-700 rounded hover:bg-gray-600 transition group" title="Ordered Task List">
                             <ListOrdered size={20} />
                         </button>
                     )}
                     {sidebarSettings.showEventManager && (
-                        <button onClick={() => setIsEventModalOpen(true)} className="p-2 bg-indigo-600 rounded hover:bg-indigo-500 transition group" title="Event Manager">
+                        <button onClick={() => toggleModal(setIsEventModalOpen, isEventModalOpen)} className="p-2 bg-indigo-600 rounded hover:bg-indigo-500 transition group" title="Event Manager">
                             <Folder size={20} />
                         </button>
                     )}
                     {sidebarSettings.showMediaGallery && (
-                        <button onClick={() => setIsGalleryModalOpen(true)} className="p-2 bg-purple-600 rounded hover:bg-purple-500 transition group" title="Global Media Gallery">
+                        <button onClick={() => toggleModal(setIsGalleryModalOpen, isGalleryModalOpen)} className="p-2 bg-purple-600 rounded hover:bg-purple-500 transition group" title="Global Media Gallery">
                             <ImageIcon size={20} />
                         </button>
                     )}
 
                     {/* Calendar — main + extras */}
                     {sidebarSettings.showCalendarMain && (
-                        <button onClick={() => setIsCalendarModalOpen(true)} className="p-2 bg-green-600 rounded hover:bg-green-500 transition group relative" title="Calendar AI">
+                        <button onClick={() => toggleModal(setIsCalendarModalOpen, isCalendarModalOpen)} className="p-2 bg-green-600 rounded hover:bg-green-500 transition group relative" title="Calendar AI">
                             <Calendar size={20} />
                             {scheduledTaskCount > 0 && (
                                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold">
@@ -2982,10 +3215,10 @@ function App() {
                     )}
                     {sidebarSettings.showExtraCalendars && (
                         <>
-                            <button onClick={() => setIsCalendarModalOpen(true)} className="p-2 bg-sky-600 rounded hover:bg-sky-500 transition group" title="Monthly Calendar View">
+                            <button onClick={() => toggleModal(setIsCalendarModalOpen, isCalendarModalOpen)} className="p-2 bg-sky-600 rounded hover:bg-sky-500 transition group" title="Monthly Calendar View">
                                 <CalendarDays size={20} />
                             </button>
-                            <button onClick={() => setIsCalendarModalOpen(true)} className="p-2 bg-teal-600 rounded hover:bg-teal-500 transition group" title="Weekly Calendar View">
+                            <button onClick={() => toggleModal(setIsCalendarModalOpen, isCalendarModalOpen)} className="p-2 bg-teal-600 rounded hover:bg-teal-500 transition group" title="Weekly Calendar View">
                                 <CalendarRange size={20} />
                             </button>
                         </>
@@ -2995,7 +3228,7 @@ function App() {
 
                     {/* Auth Status / Login Button */}
                     <button
-                        onClick={() => user ? signOut() : setIsAuthModalOpen(true)}
+                        onClick={() => user ? signOut() : toggleModal(setIsAuthModalOpen, isAuthModalOpen)}
                         className={`p-2 rounded transition group shadow-lg ${user ? 'bg-red-600/20 hover:bg-red-600/40 text-red-500 border border-red-500/30' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
                         title={user ? "Sair da Conta" : "Entrar / Cadastrar"}
                     >
@@ -3008,7 +3241,7 @@ function App() {
                     {/* New Schedule Check Button */}
                     {sidebarSettings.showScheduleCheck && (
                         <button
-                            onClick={() => setIsCalendarModalOpen(true)}
+                            onClick={() => toggleModal(setIsCalendarModalOpen, isCalendarModalOpen)}
                             className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900 rounded transition group relative"
                             title="Active Scheduled Items"
                         >
@@ -3023,7 +3256,7 @@ function App() {
 
                     {sidebarSettings.showCardManager && (
                         <button
-                            onClick={() => setIsCardListOpen(true)}
+                            onClick={() => toggleModal(setIsCardListOpen, isCardListOpen)}
                             className="p-2 bg-[#1a1c23] border border-white/5 hover:border-blue-500/30 text-white rounded transition group shadow-xl"
                             title="Gestor de Cards (Sidebar)"
                         >
@@ -3033,7 +3266,7 @@ function App() {
 
                     {sidebarSettings.showCanvasControls && (
                         <button
-                            onClick={() => setIsCanvasControlModalOpen(true)}
+                            onClick={() => toggleModal(setIsCanvasControlModalOpen, isCanvasControlModalOpen)}
                             className="p-2 bg-gradient-to-br from-indigo-600 to-blue-700 hover:from-indigo-500 hover:to-blue-600 text-white rounded transition group shadow-lg"
                             title="Canvas Performance & Controls"
                         >
@@ -3043,7 +3276,7 @@ function App() {
 
                     {sidebarSettings.showSettings && (
                         <button
-                            onClick={() => setIsSettingsModalOpen(true)}
+                            onClick={() => toggleModal(setIsSettingsModalOpen, isSettingsModalOpen)}
                             className="p-2 bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white rounded transition group"
                             title="Visual & Behavior Configuration"
                         >
@@ -3053,7 +3286,7 @@ function App() {
 
                     {sidebarSettings.showProfile && (
                         <button
-                            onClick={() => setIsUserProfileModalOpen(true)}
+                            onClick={() => toggleModal(setIsUserProfileModalOpen, isUserProfileModalOpen)}
                             className="p-2 bg-gradient-to-tr from-blue-700 to-purple-600 hover:from-blue-600 hover:to-purple-500 text-white rounded transition group shadow-lg"
                             title="AI Behavioral Profile"
                         >
@@ -3073,7 +3306,7 @@ function App() {
 
                     {sidebarSettings.showFeed && (
                         <button
-                            onClick={() => setIsFeedOpen(prev => !prev)}
+                            onClick={() => toggleModal(setIsFeedOpen, isFeedOpen)}
                             className={`p-2 rounded transition group shadow-lg relative ${isFeedOpen ? 'bg-blue-600 text-white' : 'bg-dark-800 border border-white/10 text-gray-400 hover:text-white'}`}
                             title="Feed de Posts e Conquistas"
                         >
@@ -3086,7 +3319,7 @@ function App() {
 
                     {sidebarSettings.showDreamCenter && (
                         <button
-                            onClick={() => setIsDreamModalOpen(true)}
+                            onClick={() => toggleModal(setIsDreamModalOpen, isDreamModalOpen)}
                             className="p-2 bg-[#1a1c23] border border-white/5 hover:border-blue-500/30 text-blue-400 hover:text-blue-300 rounded transition group shadow-xl"
                             title="Centro de Sonhos & Objetivos Mundiais"
                         >
@@ -3096,7 +3329,7 @@ function App() {
 
                     {sidebarSettings.showGifGallery && (
                         <button
-                            onClick={() => setIsGifGalleryOpen(true)}
+                            onClick={() => toggleModal(setIsGifGalleryOpen, isGifGalleryOpen)}
                             className="p-2 bg-[#1a1c23] border border-white/5 hover:border-pink-500/30 text-pink-400 hover:text-pink-300 rounded transition group shadow-xl"
                             title="Galeria Global de GIFs"
                         >
@@ -3106,7 +3339,7 @@ function App() {
 
                     {sidebarSettings.showGifConverter && (
                         <button
-                            onClick={() => setIsGifConverterOpen(true)}
+                            onClick={() => toggleModal(setIsGifConverterOpen, isGifConverterOpen)}
                             className="p-2 bg-[#1a1c23] border border-white/5 hover:border-cyan-500/30 text-cyan-400 hover:text-cyan-300 rounded transition group shadow-xl"
                             title="Conversor de Mídia para GIF"
                         >
@@ -3135,7 +3368,7 @@ function App() {
 
                     {sidebarSettings.showMarketplace && (
                         <button
-                            onClick={() => setIsPackGalleryOpen(true)}
+                            onClick={() => toggleModal(setIsPackGalleryOpen, isPackGalleryOpen)}
                             className="p-2 bg-[#1a1c23] border border-white/5 hover:border-indigo-500/30 text-indigo-400 hover:text-indigo-300 rounded transition group shadow-xl"
                             title="Marketplace de Packs de Processos"
                         >
@@ -3157,7 +3390,7 @@ function App() {
 
                     {sidebarSettings.showShortcuts && (
                         <button
-                            onClick={() => setIsShortcutsModalOpen(true)}
+                            onClick={() => toggleModal(setIsShortcutsModalOpen, isShortcutsModalOpen)}
                             className="p-2 bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white rounded transition group"
                             title="Keyboard Shortcuts"
                         >
@@ -3167,7 +3400,7 @@ function App() {
 
                     {sidebarSettings.showHistory && (
                         <button
-                            onClick={() => setIsHistoryPanelOpen(true)}
+                            onClick={() => toggleModal(setIsHistoryPanelOpen, isHistoryPanelOpen)}
                             className="p-2 bg-dark-700 hover:bg-dark-600 text-gray-300 hover:text-white rounded transition group"
                             title="History & Insights"
                         >
@@ -3188,7 +3421,7 @@ function App() {
                     <div className="w-8 h-[1px] bg-white/10 my-2" />
 
                     <button
-                        onClick={() => setIsSidebarSettingsOpen(true)}
+                        onClick={() => toggleModal(setIsSidebarSettingsOpen, isSidebarSettingsOpen)}
                         className="p-2 bg-dark-900 border border-white/10 hover:border-blue-500/50 text-gray-500 hover:text-blue-400 rounded-xl transition shadow-xl"
                         title="Visibilidade da Sidebar"
                     >
@@ -3233,24 +3466,25 @@ function App() {
                         </button>
                     )}
 
-                    {/* Vision Mode Button */}
+                    {/* Vision Mode Button — Camera opens independently, AI joins if available */}
                     {sidebarSettings.showVisionMode && (
                         <button
-                            onClick={() => handleToggleLiveSession('vision')}
-                            className={`p-2 rounded transition group relative ${isLiveSessionActive && isVisionModeOpen ? 'bg-blue-500/20 text-blue-400 border border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-gray-600'}`}
-                            title="Open Vision Mode (Camera + AI)"
+                            onClick={handleToggleCamera}
+                            className={`p-2 rounded transition group relative ${isVisionModeOpen ? 'bg-blue-500/20 text-blue-400 border border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-gray-600'}`}
+                            title={isVisionModeOpen ? "Fechar Câmera" : "Abrir Câmera (IA se conecta se disponível)"}
                         >
                             <Eye size={20} />
                         </button>
                     )}
 
-                    <div className="h-[1px] bg-white/10 w-full my-1" />
+                    <div className="w-[1px] bg-white/10 h-6 mx-1 self-center hidden md:block" />
+                    <div className="h-[1px] bg-white/10 w-full my-1 md:hidden" />
 
                     {/* AI Status / API Key Button */}
                     {sidebarSettings.showApiKey && (
                         <button
-                            onClick={() => setIsApiKeyModalOpen(true)}
-                            className="p-2 bg-dark-700 hover:bg-dark-600 text-gray-400 hover:text-white rounded transition group relative"
+                            onClick={() => toggleModal(setIsApiKeyModalOpen, isApiKeyModalOpen)}
+                            className="p-2 bg-dark-700 hover:bg-dark-600 text-gray-400 hover:text-white rounded-xl transition group relative shadow-lg"
                             title="Configure Gemini API Key"
                         >
                             <Zap size={20} className={aiStatus === 'connected' ? 'text-purple-400' : 'text-gray-500'} />
@@ -3259,18 +3493,15 @@ function App() {
                             )}
                         </button>
                     )}
-                </div>
 
-                {/* Fixed bottom section for Filters and Tools (To avoid clipping) */}
-                <div className="flex flex-col gap-2 py-2 overflow-visible">
                     {/* Filters — single button with popover */}
                     <div data-filter-popover className="relative flex flex-col items-center">
                         <button
                             onClick={() => setIsFilterPopoverOpen(prev => !prev)}
-                            className={`p-2 rounded-lg transition relative ${filterColor !== 'all' || filterTags.length > 0
+                            className={`p-2 rounded-xl transition relative ${filterColor !== 'all' || filterTags.length > 0
                                 ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50'
-                                : 'bg-dark-800/80 backdrop-blur border border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
-                                } shadow-xl`}
+                                : 'bg-dark-700 text-gray-400 hover:text-white hover:bg-gray-600'
+                                } shadow-lg`}
                             title="Filtros de Cor & Tags"
                         >
                             <Filter size={18} />
@@ -3281,7 +3512,7 @@ function App() {
 
                         {isFilterPopoverOpen && (
                             <div
-                                className="absolute left-12 top-0 z-[1001] bg-[#1a1c23]/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 w-52 flex flex-col gap-3 animate-in fade-in slide-in-from-left-4 duration-300"
+                                className={`absolute ${isMobile ? 'bottom-16 left-0' : 'left-12 top-0'} z-[1001] bg-[#1a1c23]/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 w-52 flex flex-col gap-3 animate-in fade-in ${isMobile ? 'slide-in-from-bottom-4' : 'slide-in-from-left-4'} duration-300`}
                             >
                                 <div className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Filtrar por cor</div>
                                 <div className="grid grid-cols-5 gap-1.5">
@@ -3348,7 +3579,7 @@ function App() {
                         </button>
 
                         {isToolsPopoverOpen && (
-                            <div className="absolute left-12 top-0 z-[1001] bg-[#1a1c23]/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 w-60 flex flex-col gap-3 animate-in fade-in slide-in-from-left-4 duration-300">
+                            <div className={`absolute ${isMobile ? 'bottom-16 left-0' : 'left-12 top-0'} z-[1001] bg-[#1a1c23]/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 w-60 flex flex-col gap-3 animate-in fade-in ${isMobile ? 'slide-in-from-bottom-4' : 'slide-in-from-left-4'} duration-300`}>
                                 {/* Group */}
                                 <button
                                     onClick={handleGroupByTags}
@@ -3626,7 +3857,7 @@ function App() {
                                 onMicroTaskComplete={handleMicroTaskComplete}
                                 onAutoDuration={handleAutoDuration}
                                 isDragging={draggingCardId === card.id || isDragging}
-                                onTimerClick={(id) => setEditingTimerCardId(id)}
+                                onTimerClick={(id) => { closeAllModals(); setEditingTimerCardId(id); }}
                                 connectionCount={connectionCount}
                                 onAddSubCard={handleAddCard}
                                 onResizeStart={handleCardResizeStart}
@@ -3634,7 +3865,7 @@ function App() {
                                 childrenCount={childrenCount}
                                 onAddNoteToCard={handleAddNoteToCard}
                                 onCenterView={centerCameraOnCard}
-                                onSchedule={(id) => setSchedulingCardId(id)}
+                                onSchedule={(id) => { closeAllModals(); setSchedulingCardId(id); }}
                                 onPostponeAi={handlePostponeAi}
                                 onShare={handleShareCard}
                                 onLike={(id) => {
@@ -3702,8 +3933,8 @@ function App() {
             </div>
 
             {/* --- Chat Panel --- */}
-            <div className={`absolute right-4 top-4 bottom-4 w-96 bg-white/95 backdrop-blur-2xl border border-gray-100 shadow-[0_20px_60px_rgba(0,0,0,0.1)] rounded-[32px] transform transition-all duration-500 ease-out flex flex-col z-50 ${isChatOpen ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 scale-95 pointer-events-none'}`}>
-                <div className="p-6 border-b border-gray-50 flex justify-between items-center">
+            <div className={`fixed inset-0 md:inset-y-0 md:right-0 md:left-auto w-full md:w-96 md:m-4 bg-white/95 backdrop-blur-2xl border border-gray-100 shadow-[0_20px_60px_rgba(0,0,0,0.1)] md:rounded-[32px] transform transition-all duration-500 ease-out flex flex-col z-[4000] ${isChatOpen ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 scale-95 pointer-events-none'}`}>
+                <div className="p-6 border-b border-gray-50 flex justify-between items-center relative">
                     <div>
                         <h2 className="font-black text-gray-900 flex items-center gap-2 text-lg tracking-tighter">
                             <div className="p-2 bg-blue-50 rounded-xl">
@@ -3713,12 +3944,60 @@ function App() {
                         </h2>
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1 ml-11">Chronos Logic</p>
                     </div>
-                    <button onClick={() => setIsChatOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all border border-gray-100">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-2" data-ai-settings>
+                        <button
+                            onClick={() => setIsAiSettingsOpen(!isAiSettingsOpen)}
+                            className={`w-10 h-10 flex items-center justify-center rounded-2xl transition-all border ${isAiSettingsOpen ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-gray-50 text-gray-400 hover:text-blue-500 hover:bg-blue-50 border-gray-100'}`}
+                            title="AI Voice & Language Settings"
+                        >
+                            <Settings size={20} />
+                        </button>
+                        <button onClick={() => setIsChatOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-gray-50 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all border border-gray-100">
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    {isAiSettingsOpen && (
+                        <div className="absolute top-20 right-6 z-[4001] w-64 bg-white border border-gray-100 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-5 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Available Voice</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {['Aoede', 'Charon', 'Kore', 'Puck', 'Zephyr', 'Enceladus'].map(voice => (
+                                            <button
+                                                key={voice}
+                                                onClick={() => setAiVoice(voice)}
+                                                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${aiVoice === voice ? 'bg-blue-600 text-white border-blue-500' : 'bg-gray-50 text-gray-600 border-gray-100 hover:border-blue-200'}`}
+                                            >
+                                                {voice}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="h-[1px] bg-gray-50 w-full" />
+
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Language</label>
+                                    <div className="flex flex-col gap-1.5">
+                                        {['Português (Brasil)', 'English (US)', 'Español', 'Français'].map(lang => (
+                                            <button
+                                                key={lang}
+                                                onClick={() => setAiLanguage(lang)}
+                                                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border text-left flex items-center justify-between ${aiLanguage === lang ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-gray-50 text-gray-600 border-gray-100'}`}
+                                            >
+                                                {lang}
+                                                {aiLanguage === lang && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto md:p-6 p-4 space-y-6 custom-scrollbar scrollbar-hide">
                     {chatMessages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center px-8 opacity-60">
                             <div className="w-16 h-16 bg-gray-50 rounded-3xl flex items-center justify-center mb-4 border border-gray-100">

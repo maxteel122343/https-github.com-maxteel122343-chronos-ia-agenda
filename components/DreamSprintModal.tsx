@@ -76,8 +76,8 @@ const DreamSprintModal: React.FC<DreamSprintModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl animate-in fade-in duration-500">
-            <div className="relative w-full max-w-4xl h-[80vh] bg-[#080a0f] border border-white/10 rounded-[48px] shadow-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center md:p-4 p-0 bg-black/95 backdrop-blur-2xl animate-in fade-in duration-500">
+            <div className="relative w-full max-w-4xl h-full md:h-[80vh] bg-[#080a0f] border border-white/10 rounded-none md:rounded-[48px] shadow-2xl overflow-hidden flex flex-col">
 
                 {/* Timer Bar (Only in Sprint) */}
                 {step === 'sprint' && (

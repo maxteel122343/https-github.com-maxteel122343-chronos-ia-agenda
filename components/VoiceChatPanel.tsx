@@ -21,7 +21,7 @@ export default function VoiceChatPanel({ isOpen, onClose, isActive, onToggleSess
     if (!isOpen) return null;
 
     return (
-        <div className="absolute right-0 top-0 h-full w-96 bg-gray-900/95 border-l border-white/10 shadow-2xl z-50 flex flex-col backdrop-blur-md animate-in slide-in-from-right duration-300">
+        <div className="fixed right-0 top-0 h-full w-full md:w-96 bg-gray-900/95 border-l border-white/10 shadow-2xl z-[4000] flex flex-col backdrop-blur-md animate-in slide-in-from-right duration-300">
             {/* Header */}
             <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
                 <div className="flex items-center gap-3">
@@ -57,16 +57,15 @@ export default function VoiceChatPanel({ isOpen, onClose, isActive, onToggleSess
                     </div>
                 ) : (
                     messages.map((msg) => (
-                        <div 
-                            key={msg.id} 
+                        <div
+                            key={msg.id}
                             className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
                         >
-                            <div 
-                                className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${
-                                    msg.isUser 
-                                        ? 'bg-blue-600/80 text-white rounded-tr-none' 
-                                        : 'bg-gray-800/80 text-gray-200 rounded-tl-none border border-white/5'
-                                }`}
+                            <div
+                                className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${msg.isUser
+                                    ? 'bg-blue-600/80 text-white rounded-tr-none'
+                                    : 'bg-gray-800/80 text-gray-200 rounded-tl-none border border-white/5'
+                                    }`}
                             >
                                 {msg.text}
                             </div>
@@ -81,11 +80,10 @@ export default function VoiceChatPanel({ isOpen, onClose, isActive, onToggleSess
                 <div className="flex items-center justify-center gap-4">
                     <button
                         onClick={onToggleSession}
-                        className={`w-16 h-16 rounded-full flex items-center justify-center transition-all transform hover:scale-105 shadow-lg ${
-                            isActive 
-                                ? 'bg-red-500 text-white shadow-red-500/20 hover:bg-red-600' 
-                                : 'bg-white text-black shadow-white/10 hover:bg-gray-200'
-                        }`}
+                        className={`w-16 h-16 rounded-full flex items-center justify-center transition-all transform hover:scale-105 shadow-lg ${isActive
+                            ? 'bg-red-500 text-white shadow-red-500/20 hover:bg-red-600'
+                            : 'bg-white text-black shadow-white/10 hover:bg-gray-200'
+                            }`}
                     >
                         {isActive ? <MicOff size={28} /> : <Mic size={28} />}
                     </button>

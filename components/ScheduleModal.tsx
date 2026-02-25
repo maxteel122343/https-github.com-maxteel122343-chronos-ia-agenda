@@ -40,8 +40,8 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, card, on
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl w-full max-w-sm flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[4000] flex items-center justify-center md:p-4 p-0" onClick={onClose}>
+            <div className="bg-[#1a1a1a] border border-white/10 rounded-none md:rounded-2xl w-full max-w-sm h-full md:h-auto flex flex-col shadow-2xl overflow-hidden animate-in md:zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#111]">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">

@@ -39,8 +39,8 @@ const SidebarSettingsModal: React.FC<SidebarSettingsModalProps> = ({ isOpen, onC
         bgClass: string;
     }) => (
         <div className={`flex items-center justify-between p-3 border rounded-xl transition-all ${settings[settingKey]
-                ? 'bg-white/5 border-white/10'
-                : 'bg-black/20 border-white/5 opacity-50'
+            ? 'bg-white/5 border-white/10'
+            : 'bg-black/20 border-white/5 opacity-50'
             }`}>
             <div className="flex items-center gap-3 min-w-0">
                 <div className={`p-2 rounded-lg shrink-0 ${bgClass}`}>
@@ -54,8 +54,8 @@ const SidebarSettingsModal: React.FC<SidebarSettingsModalProps> = ({ isOpen, onC
             <button
                 onClick={() => toggle(settingKey)}
                 className={`p-1.5 rounded-lg ml-2 shrink-0 transition-all ${settings[settingKey]
-                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
-                        : 'bg-white/5 text-gray-600 border border-white/10 hover:text-gray-400'
+                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                    : 'bg-white/5 text-gray-600 border border-white/10 hover:text-gray-400'
                     }`}
                 title={settings[settingKey] ? 'Ocultar' : 'Mostrar'}
             >
@@ -76,8 +76,8 @@ const SidebarSettingsModal: React.FC<SidebarSettingsModalProps> = ({ isOpen, onC
     const totalCount = Object.keys(settings).length - 1;
 
     return (
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-[#1a1c23] border border-white/10 rounded-3xl w-full max-w-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center md:p-4 p-0 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+            <div className="bg-[#1a1c23] border border-white/10 rounded-none md:rounded-3xl w-full max-w-2xl h-full md:h-auto shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col max-h-full md:max-h-[90vh]" onClick={e => e.stopPropagation()}>
 
                 {/* Header */}
                 <div className="p-5 border-b border-white/10 flex items-center justify-between bg-white/5">

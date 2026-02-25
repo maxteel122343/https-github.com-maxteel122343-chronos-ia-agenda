@@ -1094,7 +1094,12 @@ const CardNode: React.FC<CardNodeProps> = React.memo(({
     };
 
     const handlePomodoroClick = (e: React.MouseEvent) => {
+        // We still want to stop propagation so that handleManualClick doesn't trigger
+        // if we are actually interacting with the Pomodoro logic.
+        // But we MUST ensure the card is selected.
         e.stopPropagation();
+        onSelect(card.id);
+
         if (!card.pomodoroEnabled) return;
 
         if (!pomodoroActive) {
@@ -1212,18 +1217,24 @@ const CardNode: React.FC<CardNodeProps> = React.memo(({
         return () => { if (editChronoRef.current) clearInterval(editChronoRef.current); };
     }, [isEditing, showEditChrono, chronoMode, isPaused]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // --- Auto-exit editing when clicking outside ---
+    // --- Auto-exit editing and close panels when clicking outside ---
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (isEditing && cardRef.current && !cardRef.current.contains(e.target as Node)) {
+            const isToolbarPanelOpen = showNoteSettings || showToolbarTag || showToolbarColor || showSlideSettings || showPomodoroConfig || showPomodoroList || isEditing;
+
+            if (isToolbarPanelOpen && cardRef.current && !cardRef.current.contains(e.target as Node)) {
                 setIsEditing(false);
+                setShowNoteSettings(false);
+                setShowToolbarTag(false);
+                setShowToolbarColor(false);
+                setShowSlideSettings(false);
+                setShowPomodoroConfig(false);
+                setShowPomodoroList(false);
             }
         };
-        if (isEditing) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
+        document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isEditing]);
+    }, [isEditing, showNoteSettings, showToolbarTag, showToolbarColor, showSlideSettings, showPomodoroConfig, showPomodoroList]);
 
     // --- Shape Styles ---
     const getShapeStyles = () => {
@@ -2743,7 +2754,11 @@ const CardNode: React.FC<CardNodeProps> = React.memo(({
                                                     sourcePaneIndex: card.activePaneIndex || 0,
                                                     element: { id: elementId, type, content, title, width, height }
                                                 };
+                                                // Primary data
                                                 e.dataTransfer.setData('application/json', JSON.stringify(data));
+                                                // Fallbacks for better drag preview and standard drop targets
+                                                e.dataTransfer.setData('text/plain', title || (type === 'calendar' ? 'Agenda' : 'Elemento de Card'));
+
                                                 e.dataTransfer.effectAllowed = 'move';
                                                 e.currentTarget.classList.add('opacity-50');
                                             }}

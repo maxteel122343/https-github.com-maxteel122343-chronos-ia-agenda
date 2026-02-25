@@ -32,8 +32,8 @@ const PackGalleryModal: React.FC<PackGalleryModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
-            <div className="relative w-full max-w-6xl h-[85vh] bg-[#090b0f] border border-white/10 rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-[4000] flex items-center justify-center md:p-4 p-0 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300" onClick={onClose}>
+            <div className="relative w-full max-w-6xl h-full md:h-[85vh] bg-[#090b0f] border border-white/10 rounded-none md:rounded-[40px] shadow-2xl overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
 
                 {/* Header */}
                 <div className="p-8 border-b border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 bg-gradient-to-r from-purple-950/20 via-transparent to-blue-950/20">

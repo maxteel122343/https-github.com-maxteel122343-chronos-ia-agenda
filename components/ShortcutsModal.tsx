@@ -62,8 +62,8 @@ const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose, shortc
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-dark-800 border border-white/10 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+    <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+      <div className="bg-dark-800 border border-white/10 rounded-none md:rounded-xl shadow-2xl w-full max-w-md h-full md:h-auto overflow-hidden flex flex-col md:max-h-[80vh]" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="p-4 border-b border-white/10 flex justify-between items-center bg-dark-900/50">
