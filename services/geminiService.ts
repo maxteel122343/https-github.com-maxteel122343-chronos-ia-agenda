@@ -87,9 +87,10 @@ export const connectLiveSession = async (
     onTranscript?: (text: string, isUser: boolean) => void,
     facingMode: 'user' | 'environment' = 'user',
     onRescheduleCard?: (cardId: string, newStartTime: string) => void,
-    currentCards: CardData[] = [],
+    cards: CardData[] = [],
     voice: string = 'Puck',
-    language: string = 'Português (Brasil)'
+    language: string = 'Português (Brasil)',
+    isFastMode: boolean = false
 ) => {
     let audioContext: AudioContext | null = null;
     let mediaStream: MediaStream | null = null;
@@ -125,6 +126,31 @@ export const connectLiveSession = async (
         }
     };
 
+    const createCardsTool: FunctionDeclaration = {
+        name: 'createMultipleCards',
+        description: 'Cria múltiplos cards de uma vez no canvas. Útil para "Modo Rápido" ou quando o usuário pede listas/passos.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                cards: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            title: { type: Type.STRING, description: 'Título do card' },
+                            description: { type: Type.STRING, description: 'Descrição curta' },
+                            parentId: { type: Type.STRING, description: 'ID do card pai se for um subcard ou nota anexa' },
+                            type: { type: Type.STRING, enum: ['task', 'note'], description: 'Tipo do card' },
+                            color: { type: Type.STRING, enum: ['white', 'blue', 'purple', 'green', 'yellow', 'red'], description: 'Cor do card' }
+                        },
+                        required: ['title']
+                    }
+                }
+            },
+            required: ['cards']
+        }
+    };
+
     try {
         // ... previous setup code ...
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
@@ -152,7 +178,7 @@ export const connectLiveSession = async (
             onStreamReady(mediaStream);
         }
 
-        const cardContext = currentCards.map(c => `ID: ${c.id}, Título: ${c.title}, Status: ${c.status} `).join('\n');
+        const cardContext = cards.map(c => `ID: ${c.id}, Título: ${c.title}, Status: ${c.status} `).join('\n');
 
         // 2. Connect to Gemini Live
         const sessionPromise = getCurrentAi().live.connect({
@@ -180,8 +206,10 @@ export const connectLiveSession = async (
                 CURRENT CARDS ON CANVAS:
                 ${cardContext}
                 
+                ${isFastMode ? 'MODO RÁPIDO ATIVO: Seja extremamente produtivo e rápido. Se o usuário pedir para criar vários cards ou notas, use a ferramenta createMultipleCards imediatamente para criar todos. Não hesite em criar 10, 20 cards se solicitado. Use cor "white" por padrão a menos que pedido diferente.' : ''}
+
                 Use 'registerUserHabit' to note important behaviors discreetly.`,
-                tools: [{ functionDeclarations: [habitTool, rescheduleTool] }]
+                tools: [{ functionDeclarations: [habitTool, rescheduleTool, createCardsTool] }]
             },
             callbacks: {
                 onopen: () => {
@@ -289,6 +317,34 @@ export const connectLiveSession = async (
                                             id: fc.id,
                                             name: fc.name,
                                             response: { result: "Card rescheduled successfully." }
+                                        }
+                                    });
+                                });
+                            } else if (fc.name === 'createMultipleCards') {
+                                const args = fc.args as any;
+                                if (args.cards && Array.isArray(args.cards)) {
+                                    args.cards.forEach((cData: any) => {
+                                        // We map the internal function calls to the external handler
+                                        // The external handler for this tool will need to be implemented in App.tsx
+                                        // or we can invoke handleAddCard directly if we pass it.
+                                        // For Live session, we use a custom callback.
+                                        (window as any).__dispatchAiAction?.({
+                                            type: 'create_card',
+                                            cardData: {
+                                                ...cData,
+                                                color: cData.color || 'white', // Default to white as requested
+                                                x: Math.random() * 500 - 250,
+                                                y: Math.random() * 500 - 250
+                                            }
+                                        });
+                                    });
+                                }
+                                sessionPromise.then(session => {
+                                    session.sendToolResponse({
+                                        functionResponses: {
+                                            id: fc.id,
+                                            name: fc.name,
+                                            response: { result: `${args.cards?.length || 0} cards criados.` }
                                         }
                                     });
                                 });
@@ -541,10 +597,10 @@ export interface AiAction {
     };
 }
 
-export const getTaskSuggestions = async (currentCards: CardData[], query: string): Promise<AiAction[]> => {
+export const getTaskSuggestions = async (cards: CardData[], query: string, isFastMode: boolean = false): Promise<AiAction[]> => {
     try {
-        const cardContext = currentCards.map(c =>
-            `ID: "${c.id}" | Title: "${c.title}" | Status: ${c.status} | Pos: (${Math.round(c.x)}, ${Math.round(c.y)})`
+        const cardContext = cards.map(c =>
+            `ID: ${c.id}, Título: ${c.title}, Status: ${c.status}, Pos: (${Math.round(c.x)}, ${Math.round(c.y)})`
         ).join('\n');
 
         const systemPrompt = `You are Chronos, a relaxed, fun, and energetic productivity assistant.You speak Portuguese(Brazil).
@@ -566,6 +622,8 @@ export const getTaskSuggestions = async (currentCards: CardData[], query: string
         5. FUZZY MATCHING: If the user mentions a card title, find the closest ID from context.
         
         User Query: ${query}
+
+        ${isFastMode ? 'FAST MODE ENABLED: Be hyper-productive. If user asks for multiple items (e.g. "create 10 cards", "5 notes"), return ALL of them as separate create_card actions in one list IMMEDIALTELY. Do not explain much, just do it. Use color "white" for general tasks unless specific style is requested.' : ''}
 
 Instructions:
 - Return a list of actions.

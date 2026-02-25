@@ -1,5 +1,5 @@
 export type CardStatus = 'pending' | 'active' | 'completed' | 'skipped';
-export type CardColor = 'red' | 'yellow' | 'purple' | 'blue' | 'green' | 'gray';
+export type CardColor = 'red' | 'yellow' | 'purple' | 'blue' | 'green' | 'gray' | 'white';
 export type CardShape = 'rectangle' | 'circle' | 'hexagon' | 'diamond';
 
 export interface Attachment {

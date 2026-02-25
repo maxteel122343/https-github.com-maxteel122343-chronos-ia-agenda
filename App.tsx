@@ -98,6 +98,7 @@ function App() {
         ],
         activeLabel: null
     });
+    const [isFastMode, setIsFastMode] = useState(false);
 
     // Wrapper for speakText to always use the user-selected voice
     const speakText = useCallback((text: string) => {
@@ -318,8 +319,19 @@ function App() {
     // UI State
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-    const [chatInput, setChatInput] = useState('');
     const [isAiProcessing, setIsAiProcessing] = useState(false);
+
+    // Register a global dispatcher for AI tool calls from Live session
+    useEffect(() => {
+        (window as any).__dispatchAiAction = (action: AiAction) => {
+            if (action.type === 'create_card' && action.cardData) {
+                handleAddCard(action.cardData.parentId, action.cardData);
+            } else if (action.type === 'update_card' && action.updateData) {
+                handleUpdateCard(action.updateData.targetId, action.updateData.updates);
+            }
+        };
+        return () => { delete (window as any).__dispatchAiAction; };
+    }, [handleAddCard, handleUpdateCard]);
     const [isVoiceMode, setIsVoiceMode] = useState(false);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
@@ -1837,7 +1849,7 @@ function App() {
                 }, 50);
 
                 // --- Auto-share/Motivation on Incomplete ---
-                if (sidebarSettings.autoShareIncomplete && !isFullyComplete) {
+                if (sidebarSettings.autoShareIncomplete) {
                     setTimeout(() => {
                         setAiCallState({
                             isActive: false,
@@ -1859,7 +1871,7 @@ function App() {
                     setCamera(prev => ({ ...prev, zoom: 1 }));
                 }, 500);
 
-                if (sidebarSettings.autoShareIncomplete && !isFullyComplete) {
+                if (sidebarSettings.autoShareIncomplete) {
                     setTimeout(() => {
                         setAiCallState({
                             isActive: false,
@@ -2140,7 +2152,8 @@ function App() {
                     (cardId, newStartTime) => { handleScheduleCard(cardId, newStartTime, 0); },
                     cards,
                     aiVoice,
-                    aiLanguage
+                    aiLanguage,
+                    isFastMode
                 );
                 disconnectLiveSessionRef.current = disconnect as any;
             }
@@ -2256,7 +2269,8 @@ function App() {
                 },
                 cards,
                 aiVoice,
-                aiLanguage
+                aiLanguage,
+                isFastMode
             );
             disconnectLiveSessionRef.current = disconnect as any;
         }
@@ -2853,8 +2867,7 @@ function App() {
         setChatMessages(prev => [...prev, { role: 'model', text: 'Thinking...', timestamp: Date.now() + 1 }]);
 
         // Call AI Service
-        // We pass the latest cards state implicitly via closure (re-created on change) or we trust it doesn't change too fast during chat
-        const actions: AiAction[] = await getTaskSuggestions(cards, userMsg.text);
+        const actions: AiAction[] = await getTaskSuggestions(cards, userMsg.text, isFastMode);
 
         setIsAiProcessing(false);
         setChatMessages(prev => prev.slice(0, -1)); // Remove placeholder
@@ -3192,7 +3205,7 @@ function App() {
                         <button
                             onClick={() => {
                                 const id = crypto.randomUUID();
-                                handleAddCard(undefined, { id, title: '', description: '', color: 'gray', type: 'note', width: 220, height: 220 });
+                                handleAddCard(undefined, { id, title: '', description: '', color: 'white', type: 'note', width: 220, height: 220 });
                                 setSelectedCardId(id);
                             }}
                             className="p-2 bg-gray-500 rounded hover:bg-gray-400 transition relative group"
@@ -3553,7 +3566,7 @@ function App() {
                             >
                                 <div className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">Filtrar por cor</div>
                                 <div className="grid grid-cols-5 gap-1.5">
-                                    {(['red', 'yellow', 'purple', 'blue', 'green'] as CardColor[]).map(color => (
+                                    {(['red', 'yellow', 'purple', 'blue', 'green', 'gray', 'white'] as CardColor[]).map(color => (
                                         <button
                                             key={color}
                                             onClick={() => setFilterColor(filterColor === color ? 'all' : color)}
@@ -3982,6 +3995,13 @@ function App() {
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1 ml-11">Chronos Logic</p>
                     </div>
                     <div className="flex items-center gap-2" data-ai-settings>
+                        <button
+                            onClick={() => setIsFastMode(!isFastMode)}
+                            className={`w-10 h-10 flex items-center justify-center rounded-2xl transition-all border ${isFastMode ? 'bg-amber-500 text-white border-amber-400 shadow-lg shadow-amber-500/20' : 'bg-gray-50 text-gray-400 hover:text-amber-500 hover:bg-amber-50 border-gray-100'}`}
+                            title={isFastMode ? "Fast Mode On" : "Fast Mode Off"}
+                        >
+                            <Zap size={18} fill={isFastMode ? "currentColor" : "none"} />
+                        </button>
                         <button
                             onClick={() => setIsAiSettingsOpen(!isAiSettingsOpen)}
                             className={`w-10 h-10 flex items-center justify-center rounded-2xl transition-all border ${isAiSettingsOpen ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-gray-50 text-gray-400 hover:text-blue-500 hover:bg-blue-50 border-gray-100'}`}

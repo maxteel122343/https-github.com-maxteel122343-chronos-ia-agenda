@@ -64,7 +64,7 @@ const CardCalendar: React.FC<CardCalendarProps> = ({ events, onEventsChange, isE
 
     const accentColor: Record<string, string> = {
         red: '#ef4444', yellow: '#eab308', purple: '#a855f7',
-        blue: '#3b82f6', green: '#22c55e', gray: '#6b7280',
+        blue: '#3b82f6', green: '#22c55e', gray: '#6b7280', white: '#ffffff'
     };
     const accent = accentColor[cardColor] || '#6b7280';
 
@@ -1276,6 +1276,7 @@ const CardNode: React.FC<CardNodeProps> = React.memo(({
             blue: 'bg-white border-blue-500 hover:border-blue-600 text-gray-800 shadow-sm',
             green: 'bg-white border-green-500 hover:border-green-600 text-gray-800 shadow-sm',
             gray: 'bg-white border-gray-300 hover:border-gray-400 text-gray-800 shadow-sm',
+            white: 'bg-white border-gray-100 hover:border-gray-200 text-gray-800 shadow-sm shadow-black/5',
         };
 
         const activeClass = isActiveTask ? 'ring-2 ring-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.3)] scale-105 z-20' : '';
