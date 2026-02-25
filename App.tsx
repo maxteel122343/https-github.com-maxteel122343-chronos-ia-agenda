@@ -319,19 +319,9 @@ function App() {
     // UI State
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+    const [chatInput, setChatInput] = useState('');
     const [isAiProcessing, setIsAiProcessing] = useState(false);
 
-    // Register a global dispatcher for AI tool calls from Live session
-    useEffect(() => {
-        (window as any).__dispatchAiAction = (action: AiAction) => {
-            if (action.type === 'create_card' && action.cardData) {
-                handleAddCard(action.cardData.parentId, action.cardData);
-            } else if (action.type === 'update_card' && action.updateData) {
-                handleUpdateCard(action.updateData.targetId, action.updateData.updates);
-            }
-        };
-        return () => { delete (window as any).__dispatchAiAction; };
-    }, [handleAddCard, handleUpdateCard]);
     const [isVoiceMode, setIsVoiceMode] = useState(false);
     const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
@@ -839,6 +829,8 @@ function App() {
         });
     }, [handleAddCard]);
 
+
+
     const handleUpdateCard = useCallback((id: string, updates: Partial<CardData>) => {
         setCards(prev => {
             let finalUpdates = { ...updates };
@@ -1049,6 +1041,18 @@ function App() {
             });
         });
     }, []);
+
+    // Register a global dispatcher for AI tool calls from Live session
+    useEffect(() => {
+        (window as any).__dispatchAiAction = (action: AiAction) => {
+            if (action.type === 'create_card' && action.cardData) {
+                handleAddCard(action.cardData.parentId, action.cardData);
+            } else if (action.type === 'update_card' && action.updateData) {
+                handleUpdateCard(action.updateData.targetId, action.updateData.updates);
+            }
+        };
+        return () => { delete (window as any).__dispatchAiAction; };
+    }, [handleAddCard, handleUpdateCard]);
 
     const handleScheduleCard = (cardId: string, start: string, reminderHours: number) => {
         const card = cards.find(c => c.id === cardId);

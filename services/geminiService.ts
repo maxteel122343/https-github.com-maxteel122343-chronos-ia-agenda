@@ -182,7 +182,7 @@ export const connectLiveSession = async (
 
         // 2. Connect to Gemini Live
         const sessionPromise = getCurrentAi().live.connect({
-            model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+            model: 'gemini-2.0-flash-exp',
             config: {
                 responseModalities: [Modality.AUDIO],
                 speechConfig: {
@@ -651,7 +651,7 @@ Instructions:
                                     type: { type: Type.STRING, enum: ['task', 'note'] },
                                     x: { type: Type.NUMBER },
                                     y: { type: Type.NUMBER },
-                                    color: { type: Type.STRING, enum: ['red', 'yellow', 'purple', 'blue', 'green', 'gray'] },
+                                    color: { type: Type.STRING, enum: ['red', 'yellow', 'purple', 'blue', 'green', 'gray', 'white'] },
                                     shape: { type: Type.STRING, enum: ['rectangle', 'circle', 'hexagon', 'diamond'] },
                                     timerFillMode: { type: Type.STRING, enum: ['none', 'pizza-slice', 'radial-card-fill'] },
                                     parentId: { type: Type.STRING }
